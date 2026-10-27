@@ -1,0 +1,38 @@
+# pacod-benchmark's roles and permissions, for pacod-id's rules engine.
+#
+# The API compiles this file in (crates/pacod-bench/src/identity.rs), pushes it to pacod-id at
+# every start, and checks every call against it; the UI generates ui/src/lib/authz.generated.ts
+# from it (make authz). authz/vectors/bench.yaml pins what each role may do.
+#
+# Permissions:
+#   results.read      see agents, targets, suites, runs and their results; download reports
+#   suites.manage     write and delete suites
+#   runs.start        start and cancel runs
+#   reports.publish   publish a run's report to pacod-gw
+#   targets.manage    register and remove external targets, delete runs, clean leftovers
+#   members.manage    give and take benchmark roles
+#
+# A run on a gateway the benchmark manages acts there with the benchmark's own admin token
+# (BENCH_GW_ADMIN_TOKEN), not with the caller's rights: runs.start lets its holder create and
+# delete scratch organisations, workspaces and keys on that gateway, and targets.manage lets its
+# holder aim the agents at any URL. Grant them to people trusted with that
+# (docs/threat-model.md).
+#
+# No role is implicit: in a realm where anyone can sign up, an implicit role would give every
+# account read access. An account without a benchmark role sees "no access".
+product: bench
+roles:
+  viewer:
+    at: [platform]
+    permissions: [results.read]
+  operator:
+    at: [platform]
+    permissions: [results.read, suites.manage, runs.start, reports.publish]
+  admin:
+    at: [platform]
+    permissions: [results.read, suites.manage, runs.start, reports.publish, targets.manage, members.manage]
+    # Nobody removes the last benchmark admin.
+    protected: true
+grant:
+  # Admins give and take every benchmark role.
+  default: members.manage

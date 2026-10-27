@@ -1,0 +1,74 @@
+{
+  "source": "recorded",
+  "recorded": "2026-10-11",
+  "provider": "gemini",
+  "case": "json-schema",
+  "request": {
+    "method": "POST",
+    "path": "/models/gemini-3.8-flash:generateContent",
+    "body": {
+      "contents": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "Reply with the single word: pong"
+            }
+          ]
+        }
+      ],
+      "generationConfig": {
+        "responseMimeType": "application/json",
+        "responseJsonSchema": {
+          "type": "object",
+          "properties": {
+            "word": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "word"
+          ]
+        }
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=UTF-8"
+    },
+    "body": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "text": "{\"word\":\"pong\"}",
+                "thoughtSignature": "Et4GCtsGAWkUfRMoPSJFpceoJT1gN4VJYKHpJlczXwB1QuZ+drAiVu3YcO7tPcIbqBcSPry7lJgXUN+7hDT52yYJxI6qrA3wICkUClwGukTdcIVzFfTxcUUITNWB7pEkQkNOEPy2VcI7tk0loyd7xvbtzama9StSvY+ENZ2hlew5XJY0QWrf6Lpn0FNwI7X2SutwmU6sV5NOWMm1qzXdswn5ZdOSA8uVq/ryAVv7SPVniE5UtOk2dO7hxiKk0ul7Yx9cUz1CoyV5ReE2+I30H0BrANxXkUauucej/37+p0yMnUq1NDm1trdLHIJzDV0/XlokxQUkVb3nIrwTFaGG7MMkcxFIY+YUJoJXSLxhz1eGpiK+Ux0vjFSJ7KKfEG3rNGR8yWKSVwtpE0WBfxfrXnha8xcovHwwBLe6fgckF+OGlpm+VuoSR9wu2BgamkQbWQ4sEfzuDTimnycsOV2UxWrg1LRMtyJfj0W+hrZ+UMUw40eH8v7rChPQAbJ+JwNYqcC5SfhCDlCDX+1qXrA+1HrUSNzXYVh5yp+0G+dYv8sQTKNBVB37VnYORkxU0aUkTHD35aFFf7JhASgjfgypGoqR2jwDJFu6I5XTax61//suk+e9xKYlhIy0n/eAZyZqB69hFOOnHoymNofpn7bItNkDMh106K3oZqMi/C6MJ6OthjVU+a61ALHlsnuKlGwVKx+bPZpl+w6yK2ZoaVL7iJLJS3Nnj3ZvDGOH4tJxOMnXk0w0zgtEKUnAYbGRAz+K40DvdXsrFH9E3fEoypx3LxA2kz/8NsHh+czMz0KNg13vsJ9Gv4GxB9EcZLN8WZdF8rkOMRYCPldELs85AE1fpGcsfdB78G3EoSrkbqLRIVfQd4oTTFNUPx/alGAqBr8/2vbd4yBTvznl/Aa5pvtS4m/vBuhPjJ/lvveNA9nwOP2obgOimU/gblOQldOJsP7VGamRUzO6s9L8sk+IabdU7JK7z4E5+T12mMRmPwLRpJPKMUBng6JchKAnY61/QAJjo1Xd99Olpw24yQ7DZuDYGrx2bSE35gWWG9LoeuG8QLzPbzdFnJ4zS4tybae4frjVMzzPa/vAXXZ9v1j3aaatHaqqtUPMgsoqrigw2YM2f9X8vodpMdOKtRWSpa98qhHAzw=="
+              }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP",
+          "index": 0
+        }
+      ],
+      "usageMetadata": {
+        "promptTokenCount": 8,
+        "candidatesTokenCount": 5,
+        "totalTokenCount": 215,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 8
+          }
+        ],
+        "thoughtsTokenCount": 202,
+        "serviceTier": "standard"
+      },
+      "modelVersion": "gemini-3.8-flash",
+      "responseId": "fx-13"
+    }
+  }
+}

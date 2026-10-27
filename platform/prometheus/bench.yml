@@ -1,0 +1,14 @@
+# pacod-benchmark's scrape job for the shared Prometheus (pacod-prometheus), loaded through its
+# scrape_config_files glob (pacod-demo's prometheus.yml in the full stack). The target is the
+# service name on pacod-net. The job name is what dashboards select on; keep it.
+#
+# bench-api exposes on port 9190: bench_runs_started_total, bench_runs_ended_total{outcome},
+# bench_cells_ended_total{outcome}, bench_run_active (crates/pacod-bench/src/lib.rs).
+
+scrape_configs:
+  - job_name: pacod-bench
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["bench-api:9190"]
+        labels:
+          instance: bench-api

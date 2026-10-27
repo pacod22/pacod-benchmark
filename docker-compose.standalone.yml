@@ -1,0 +1,259 @@
+# pacod-benchmark's own stack, standalone: its copies of the shared components it needs, under
+# their shared names (pacod-demo/docs/NETWORK.md), and a load agent and a load mock of its own.
+# Loaded together with docker-compose.yml by `make up`. The full stack (pacod-demo) does not load
+# this file: it runs one of each shared component for every product, and the gateway's own load
+# agent and mock.
+#
+#   pacod-postgres, pacod-db-init   the benchmark's role and database (platform/postgres)
+#   pacod-id, pacod-mailpit         sign-in; realm "bench" (docker/pacod-id/pacod-id.toml)
+#   pacod-caddy                     the UI at BENCH_SITE (platform/caddy/bench.caddy)
+#   bench-load-agent                pacod-gw's load agent, aimed at BENCH_AGENT_TARGET_URL
+#   bench-load-mock                 pacod-gw's mock provider, keeping no requests
+#   bench-gw-lite                   profile dev-gateway: pacod-gw-lite in front of bench-load-mock,
+#                                   a target that needs nothing else on the machine
+#
+# Images: `make images` (pacod-bench, pacod-bench-ui; pacod-id from vendor/pacod-id; the agent,
+# the mock and the minimal gateway from the pacod-gw checkout next to this one).
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-locked-down: &locked-down
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+
+services:
+  pacod-postgres:
+    image: postgres:18.6-alpine3.24
+    container_name: pacod-postgres
+    logging: *logging
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    volumes:
+      - pacod-postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+      start_interval: 1s
+    networks: [pacod-net]
+
+  # Each product's role and database, at every start (idempotent): the benchmark's
+  # (platform/postgres/bench-db.sh) and pacod-id's (docker/pacod-id/id-db.sh, a copy of pacod-id's
+  # platform/postgres/id-db.sh). The client is the server's own image (\getenv needs psql 15+).
+  pacod-db-init:
+    image: postgres:18.6-alpine3.24
+    container_name: pacod-db-init
+    logging: *logging
+    depends_on:
+      pacod-postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: pacod-postgres
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD:-}
+      BENCH_DB_PASSWORD: ${BENCH_DB_PASSWORD:-}
+      PID_DB_PASSWORD: ${PID_DB_PASSWORD:-}
+    volumes:
+      - ./docker/pacod-id/id-db.sh:/initdb.d/id/id-db.sh:ro
+      - ./platform/postgres:/initdb.d/bench:ro
+    entrypoint: ["sh", "-c", "set -e; for f in /initdb.d/*/*-db.sh; do sh \"$$f\"; done"]
+    networks: [pacod-net]
+    restart: "no"
+
+  pacod-id:
+    # Built from vendor/pacod-id by `make images`; not pacod-id:dev, which pacod-gw builds from its
+    # own vendored copy.
+    image: ${PACOD_ID_IMAGE:-pacod-bench-id:dev}
+    container_name: pacod-id
+    logging: *logging
+    restart: unless-stopped
+    depends_on:
+      pacod-db-init:
+        condition: service_completed_successfully
+      pacod-mailpit:
+        condition: service_started
+    environment:
+      PID_DATABASE_URL: postgres://pacod_id:${PID_DB_PASSWORD:-}@pacod-postgres:5432/pacod_id
+      PID_KEK: ${PID_KEK:-}
+      PID_TOKEN_PEPPER: ${PID_TOKEN_PEPPER:-}
+      BENCH_ID_UI_SECRET: ${BENCH_ID_UI_SECRET:-}
+      BENCH_ID_SERVICE_SECRET: ${BENCH_ID_SERVICE_SECRET:-}
+      # The issuer is the address browsers use; pacod-id answers its sign-in pages only on that
+      # exact host and port. Development: the published loopback port below.
+      BENCH_ID_ISSUER: ${BENCH_ID_ISSUER:-http://127.0.0.1:18370}
+      BENCH_ORIGIN: ${BENCH_ORIGIN:-http://localhost:18380}
+      PID_TRUSTED_PROXIES: ${PID_TRUSTED_PROXIES:-}
+      # The first account, created once: an identity admin and benchmark admin.
+      PID_BOOTSTRAP_ADMIN_EMAIL: ${ID_ADMIN_EMAIL:-admin@pacod-bench.test}
+      PID_BOOTSTRAP_ADMIN_PASSWORD: ${ID_ADMIN_PASSWORD:-}
+      PID_BOOTSTRAP_ADMIN_REALM: bench
+      PID_BOOTSTRAP_ADMIN_ROLES: id.admin,bench.admin
+      PID_SMTP_HOST: ${PID_SMTP_HOST:-pacod-mailpit}
+      PID_SMTP_PORT: ${PID_SMTP_PORT:-1025}
+      PID_SMTP_TLS: ${PID_SMTP_TLS:-none}
+      PID_EMAIL_FROM_ADDRESS: ${ID_MAIL_FROM:-id@pacod-bench.test}
+      PID_EMAIL_FROM_NAME: pacod-benchmark
+      PID_LOG: ${PID_LOG:-info,sqlx=warn}
+      PID_LOG_FORMAT: ${PID_LOG_FORMAT:-text}
+      # Its address on pacod-admin-net alone: on 0.0.0.0 all of pacod-net would reach it.
+      PID_INTERNAL_LISTEN: pacod-id-internal:8071
+    volumes:
+      - ./docker/pacod-id/pacod-id.toml:/etc/pacod-id/pacod-id.toml:ro
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    ports:
+      - "127.0.0.1:${BENCH_ID_PORT:-18370}:8070"
+    networks:
+      pacod-net:
+      pacod-admin-net:
+        aliases: [pacod-id-internal]
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "http://127.0.0.1:9170/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+      start_interval: 1s
+
+  # Every mail pacod-id sends (invitations, resets) ends here: http://127.0.0.1:18325/
+  pacod-mailpit:
+    image: axllent/mailpit:v1.27
+    container_name: pacod-mailpit
+    logging: *logging
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${BENCH_MAILPIT_PORT:-18325}:8025"
+    networks: [pacod-net]
+
+  pacod-caddy:
+    image: caddy:2.11.6-alpine
+    container_name: pacod-caddy
+    logging: *logging
+    restart: unless-stopped
+    environment:
+      BENCH_SITE: ${BENCH_SITE:-http://localhost:18380}
+      BENCH_CADDY_LOG_FORMAT: ${BENCH_CADDY_LOG_FORMAT:-console}
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./platform/caddy:/etc/caddy/sites:ro
+      - pacod-caddy-data:/data
+    ports:
+      - "127.0.0.1:${BENCH_UI_PORT:-18380}:18380"
+    networks: [pacod-net]
+
+  # pacod-gw's load agent: the calls of every cell. LOAD_AGENT_TARGET_URL is the gateway it calls
+  # when a cell names no URL (a managed gateway's data plane as this machine reaches it); external
+  # targets name theirs. It reaches its mock on "bench-load" and the outside on "bench-agents".
+  bench-load-agent:
+    image: ${PACOD_GW_LOAD_AGENT_IMAGE:-pacod-gw-load-agent:dev}
+    container_name: bench-load-agent
+    <<: *locked-down
+    restart: unless-stopped
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment:
+      SERVICE_NAME: bench-load-agent
+      LOAD_AGENT_NAME: local
+      LOAD_AGENT_TARGET_URL: ${BENCH_AGENT_TARGET_URL:-http://host.docker.internal:18080}
+      LOAD_AGENT_TOKEN: ${BENCH_AGENT_TOKEN:-}
+      LOAD_AGENT_MAX_CONCURRENCY: "10000"
+      LOAD_AGENT_MAX_RATE: "5000"
+      LOAD_AGENT_MAX_DURATION: "3600"
+      LOAD_AGENT_LOG_FORMAT: ${BENCH_LOG_FORMAT:-json}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "http://127.0.0.1:8096/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+      start_interval: 1s
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }
+    networks: [bench-agents, bench-load]
+    logging: *logging
+    deploy:
+      resources:
+        # It shares the machine with whatever it loads here: its figures show behaviour. For
+        # capacity, run agents on other machines (pacod-gw's deploy/load-agent/).
+        limits: { cpus: "2.0", memory: 512M }
+
+  bench-load-mock:
+    image: ${PACOD_GW_MOCK_IMAGE:-pacod-gw-mock:dev}
+    container_name: bench-load-mock
+    <<: *locked-down
+    restart: unless-stopped
+    # Captures nothing: at thousands of calls a second, kept requests would fill its memory.
+    command: ["--listen", "0.0.0.0:9000", "--max-captured", "0"]
+    environment:
+      SERVICE_NAME: bench-load-mock
+      PGW_LOG_FORMAT: ${BENCH_LOG_FORMAT:-json}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "tcp://127.0.0.1:9000"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+      start_interval: 1s
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }
+    networks: [bench-load]
+    logging: *logging
+    deploy:
+      resources:
+        limits: { cpus: "2.0", memory: 256M }
+
+  # pacod-gw-lite in front of bench-load-mock, with the mock's latency in its provider URL: an
+  # external target (pacod_gw_lite) that the agent reaches at http://bench-gw-lite:8080. Register
+  # it with that URL, the model "openai/gpt-mock", the key BENCH_LITE_KEY, and the declared mock
+  # {family openai, delay_ms 200, chunk_delay_ms 20, chunks 20}.
+  bench-gw-lite:
+    image: ${PACOD_GW_LITE_IMAGE:-pacod-gw-lite:dev}
+    container_name: bench-gw-lite
+    <<: *locked-down
+    profiles: [dev-gateway]
+    restart: unless-stopped
+    command: ["serve"]
+    environment:
+      PGW_LISTEN: 0.0.0.0:8080
+      RUST_LOG: ${BENCH_LOG_LEVEL:-info}
+      PGW_LOG_FORMAT: ${BENCH_LOG_FORMAT:-json}
+      PGW_EGRESS_ALLOW_PRIVATE: bench-load-mock
+      PGW_PROVIDER_OPENAI_KEY: bench-load-mock-provider-secret
+      PGW_PROVIDER_OPENAI_BASE_URL: http://bench-load-mock:9000/x-mock/delay=200,chunk_delay=20,chunks=20/v1
+      PGW_MODEL_MOCK: openai/gpt-mock
+      PGW_CLIENT_BENCH_KEY: ${BENCH_LITE_KEY:-}
+    depends_on:
+      bench-load-mock:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "http://127.0.0.1:8080/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+      start_interval: 1s
+    networks: [bench-load]
+    logging: *logging
+
+volumes:
+  pacod-postgres-data:
+  pacod-caddy-data:
+
+networks:
+  pacod-net:
+    external: true
+  pacod-admin-net:
+    external: true
+  bench-agents:
+    name: bench-agents
+  # The agent, its mock and the minimal gateway: no route out.
+  bench-load:
+    name: bench-load
+    internal: true

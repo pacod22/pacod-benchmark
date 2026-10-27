@@ -1,0 +1,11 @@
+# The edge of pacod-benchmark's own stack: the global options, then every product's site blocks
+# (platform/caddy/*.caddy, here bench.caddy alone). pacod-demo's Caddyfile does the same for the
+# full stack.
+{
+	admin off
+	# Development: plain HTTP on a port of its own. A server sets BENCH_SITE to its https://
+	# address, and Caddy obtains the certificate.
+	auto_https disable_redirects
+}
+
+import /etc/caddy/sites/*.caddy

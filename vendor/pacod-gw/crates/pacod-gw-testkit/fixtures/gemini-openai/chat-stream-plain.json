@@ -1,0 +1,28 @@
+{
+  "source": "recorded",
+  "recorded": "2026-10-11",
+  "provider": "gemini-openai",
+  "case": "chat-stream-plain",
+  "request": {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+      "model": "gemini-3.8-flash",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Reply with the single word: pong"
+        }
+      ],
+      "max_tokens": 1024,
+      "stream": true
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/event-stream"
+    },
+    "text": "data: {\"choices\":[{\"delta\":{\"content\":\"pong\",\"role\":\"assistant\"},\"index\":0}],\"created\":1791723385,\"id\":\"fx-3\",\"model\":\"gemini-3.8-flash\",\"object\":\"chat.completion.chunk\"}\n\ndata: {\"choices\":[{\"delta\":{\"extra_content\":{\"google\":{\"thought_signature\":\"Es0DCsoDAWkUfRNseszlanJnawzDFuTu+37NnOoNzeYXbZaH1O8lXXiPTIQlLIp2B1+7QL4OOYX8dYy+EGR2DKgqALu1CfT6SffmJ60CypN3l20gD4GJNX7x7P7pccQ1f8Ipn8u6LZyU863/DAGeJob7zdwz2BK4xVPcQQOr7aFp4LxPefdtdz4VVbSoGPF1IwfQqNASN0SDNLO/AnAX7akbvWa1sqkUsjjfBUgZbtO4g87hTAHel95+4UINSalA0WgwHaKD2VyWwXQl3SBV5s4QDbvrS5xKz3sqEAys8PaL6Ym8xrfirknyuQZwSm/3Tncu7gO4ut02Oboqls0x/KI7WBo7/OgQ6q/nabj5MOLROBN8ioNJU173UqyaozCsSjZROTHW96F3BSJf8H1qoKGoG8/2EL1Op7dCEQLdCjzHeDgmLIjz91x8R4veMtu4RtcfbcbF7h+2KnHY4q3dA5ELnxO/69eQQPAyF8aZtbV7RnqMV817/0FXUDXaYPMlP1c0dRPw4jnZSn9mz4AlbaMy/+9KE3cjgTIvBPeJRKhhNeI9R+SEmk9pvIwilJhEj0KDtHXa8ejGNF4SWFYzAUjbM9aNlud66nkLpBoNLvI=\"}},\"role\":\"assistant\"},\"finish_reason\":\"stop\",\"index\":0}],\"created\":1791723385,\"id\":\"fx-3\",\"model\":\"gemini-3.8-flash\",\"object\":\"chat.completion.chunk\"}\n\ndata: [DONE]\n\n"
+  }
+}

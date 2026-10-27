@@ -1,0 +1,60 @@
+{
+  "source": "recorded",
+  "recorded": "2026-10-11",
+  "provider": "gemini-openai",
+  "case": "thoughts",
+  "request": {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+      "model": "gemini-3.8-flash",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Reply with the single word: pong"
+        }
+      ],
+      "max_tokens": 1024,
+      "extra_body": {
+        "google": {
+          "thinking_config": {
+            "thinking_level": "low",
+            "include_thoughts": true
+          }
+        }
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": "pong",
+            "extra_content": {
+              "google": {
+                "thought_signature": "EmkKZwFpFH0TrqJu9Xe9UHIc04sF2KNppX9VrUInZ6c4i/1v4dioQTQWllT2omzSj4LDVu8BstY7IR2SmyzRwQnqrS8p1zGC5Yq3KV+xMSCTvkpDn2H+TPP+qZYbXZLYHiVxzylO0vNXeGU="
+              }
+            },
+            "role": "assistant"
+          }
+        }
+      ],
+      "created": 1791723430,
+      "id": "fx-7",
+      "model": "gemini-3.8-flash",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 1,
+        "prompt_tokens": 8,
+        "total_tokens": 9
+      }
+    }
+  }
+}

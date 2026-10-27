@@ -1,0 +1,42 @@
+[package]
+name = "pacod-bench-engine"
+description = "The benchmark's controller: suites expanded into cells, each cell's scene on the gateway, the load agents driven, and their seconds added up"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+# A fake of the gateway's management API and an agent in process, for the tests of this crate
+# and of pacod-bench.
+testing = ["dep:axum", "dep:parking_lot"]
+
+[dependencies]
+# The load agent's contract and histograms, the same types the agent itself speaks.
+pacod-gw-load.workspace = true
+# The report the gateway takes: built from its own types.
+pacod-gw-bench-report.workspace = true
+
+anyhow.workspace = true
+chrono.workspace = true
+futures-util.workspace = true
+hex.workspace = true
+reqwest.workspace = true
+# SHA-256 of a cell's configuration, its comparison key.
+ring.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde-saphyr.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+url.workspace = true
+
+axum = { workspace = true, optional = true }
+parking_lot = { workspace = true, optional = true }
+
+[dev-dependencies]
+pacod-bench-engine = { path = ".", features = ["testing"] }
+# The mock provider, started in process.
+pacod-gw-testkit.workspace = true
+axum.workspace = true

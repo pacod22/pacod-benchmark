@@ -1,0 +1,91 @@
+# Development overrides of docker-compose.yml and docker-compose.standalone.yml (`make dev-up`):
+# images built from the working tree, the API published on the host for the command line and the
+# tests, and fixed, public secrets for everything bound to data. They are not secret, and never
+# `${NAME:-default}`: a production .env must not reach a development stack.
+#
+# The defaults aim at a pacod-gw development stack on this machine (pacod-gw's `make dev-up`):
+# its management API at host.docker.internal:18081, its load agent at :18096, its data plane at
+# :18080, and its load mock as its gateway reaches it (gw-load-mock:9000). BENCH_GW_ADMIN_TOKEN
+# is that gateway's platform-admin token (docs/runbook.md, section 3); without it the benchmark
+# manages no gateway and runs external targets only.
+#
+# The UI: http://localhost:18380, signed in as admin@pacod-bench.test / pacod-bench-dev.
+
+services:
+  bench-api:
+    image: pacod-bench:dev
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment:
+      RUST_LOG: ${RUST_LOG:-info,sqlx=warn}
+      BENCH_LOG_FORMAT: text
+      DATABASE_URL: postgres://bench:bench_dev_db@pacod-postgres:5432/bench
+      # Every interface, so that the port below reaches it; the UI still calls the alias.
+      BENCH_LISTEN: 0.0.0.0:8190
+      BENCH_ID_ISSUER: http://127.0.0.1:18370
+      BENCH_ID_CLIENT_SECRET: dev-only-bench-service-secret-0123456789
+      # Both from .env, or neither: the token is minted by the gateway it opens.
+      BENCH_GW_ADMIN_URL: ${BENCH_GW_ADMIN_URL:-}
+      BENCH_GW_ADMIN_TOKEN: ${BENCH_GW_ADMIN_TOKEN:-}
+      BENCH_LOAD_MOCK_URL: http://gw-load-mock:9000
+      BENCH_GW_DECLARED: '{"layout": "single", "notes": "pacod-gw development stack on this machine"}'
+      BENCH_GW_CONSOLE_URL: http://127.0.0.1:13000
+      # The benchmark's own agent and pacod-gw's development agent; both take the same token.
+      BENCH_AGENTS: local=http://bench-load-agent:8096
+      BENCH_AGENT_PLACEMENT: local=same_host
+      BENCH_AGENT_TOKEN: dev-only-load-agent-token-0123456789abcdef
+      BENCH_BASELINE_MOCK_URL: http://bench-load-mock:9000
+    ports:
+      - "127.0.0.1:18190:8190"
+      - "127.0.0.1:19190:9190"
+
+  bench-ui:
+    image: pacod-bench-ui:dev
+    environment:
+      BENCH_ID_ISSUER: http://127.0.0.1:18370
+      BENCH_UI_CLIENT_SECRET: dev-only-bench-ui-secret-0123456789abcd
+      BENCH_UI_SESSION_SECRET: dev-only-bench-session-secret-0123456789
+      BENCH_ORIGIN: http://localhost:18380
+
+  pacod-postgres:
+    environment:
+      POSTGRES_PASSWORD: bench_dev_postgres
+    ports:
+      - "127.0.0.1:25437:5432"
+
+  pacod-db-init:
+    environment:
+      PGPASSWORD: bench_dev_postgres
+      BENCH_DB_PASSWORD: bench_dev_db
+      PID_DB_PASSWORD: pacod_id_dev_postgres
+
+  pacod-id:
+    environment:
+      PID_DATABASE_URL: postgres://pacod_id:pacod_id_dev_postgres@pacod-postgres:5432/pacod_id
+      PID_KEK: ZGV2LW9ubHkta2V5LWZvci1wYWNvZC1pZC1kZXYhISE=
+      PID_TOKEN_PEPPER: dev-only-pacod-id-token-pepper-0123456789
+      BENCH_ID_UI_SECRET: dev-only-bench-ui-secret-0123456789abcd
+      BENCH_ID_SERVICE_SECRET: dev-only-bench-service-secret-0123456789
+      BENCH_ID_ISSUER: http://127.0.0.1:18370
+      BENCH_ORIGIN: http://localhost:18380
+      PID_BOOTSTRAP_ADMIN_PASSWORD: pacod-bench-dev
+
+  pacod-caddy:
+    environment:
+      BENCH_SITE: http://localhost:18380
+
+  bench-load-agent:
+    environment:
+      LOAD_AGENT_TOKEN: dev-only-load-agent-token-0123456789abcdef
+      LOAD_AGENT_LOG_FORMAT: text
+    ports:
+      - "127.0.0.1:18396:8096"
+
+  bench-load-mock:
+    ports:
+      - "127.0.0.1:19396:9000"
+
+  bench-gw-lite:
+    environment:
+      PGW_CLIENT_BENCH_KEY: pgw_bench_dev-only-lite-key-0123456789abcdef
+    ports:
+      - "127.0.0.1:18381:8080"

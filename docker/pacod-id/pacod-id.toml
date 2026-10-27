@@ -1,0 +1,43 @@
+# pacod-id for pacod-benchmark on its own: one realm and the benchmark's two clients. In the full
+# stack, pacod-demo's config/pacod-id.toml holds the same two clients in its shared realm.
+#
+# pacod-id expands the variables below at start; an unset or empty one is fatal.
+# docker-compose.standalone.yml sets them from BENCH_ID_ISSUER and BENCH_ORIGIN (development:
+# http://127.0.0.1:18370 and http://localhost:18380).
+#
+# Browser endpoints (sign-in, authorize, logout) answer only when the Host is the issuer's own, so
+# the issuer is the address people's browsers use. The UI and the API call the token, key,
+# internal and admin endpoints on the internal listener instead (http://pacod-id-internal:8071,
+# on pacod-admin-net), never through the issuer.
+
+[[realm]]
+name = "bench"
+issuer = "${BENCH_ID_ISSUER}"
+# pacod-id's brands are a closed list; the benchmark measures the gateway and wears its look.
+brand = "gateway"
+# Accounts come by invitation; the benchmark has no implicit role: an account without a
+# benchmark role sees "no access".
+self_signup = false
+
+# The UI's sign-in. Authorization code with PKCE. The redirect URIs are exact: the UI sends the
+# ones built from BENCH_ORIGIN, never from a request.
+[[client]]
+id = "pacod-bench-ui"
+realm = "bench"
+kind = "confidential"
+secret_env = "BENCH_ID_UI_SECRET"
+redirect_uris = ["${BENCH_ORIGIN}/auth/callback"]
+post_logout_redirect_uris = ["${BENCH_ORIGIN}/"]
+initiate_login_uri = "${BENCH_ORIGIN}/auth/login"
+audience = "pacod-bench"
+
+# The API as a service: pushes the benchmark's manifest (authz/bench.yaml) and follows the
+# authorization feed. Its calls to pacod-gw use the gateway's own admin token
+# (BENCH_GW_ADMIN_TOKEN), not a token of pacod-id's.
+[[client]]
+id = "pacod-bench-service"
+realm = "bench"
+kind = "service"
+product = "bench"
+secret_env = "BENCH_ID_SERVICE_SECRET"
+audience = "pacod-bench"

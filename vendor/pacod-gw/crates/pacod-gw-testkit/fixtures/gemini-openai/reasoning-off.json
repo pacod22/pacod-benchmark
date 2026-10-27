@@ -1,0 +1,53 @@
+{
+  "source": "recorded",
+  "recorded": "2026-10-11",
+  "provider": "gemini-openai",
+  "case": "reasoning-off",
+  "request": {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+      "model": "gemini-3.8-flash",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Reply with the single word: pong"
+        }
+      ],
+      "max_tokens": 1024,
+      "reasoning_effort": "none"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": "pong",
+            "extra_content": {
+              "google": {
+                "thought_signature": "EmkKZwFpFH0T3veK7F7ThTpcbTDV54t1GUyeRbiHZWbVeEFEvuSNio2JE9BwlLVmY698pEo4cyOzRzkvkqiLfY63tofrHOic51ei+S7+GPu2mqC7IYnrdjUHon4WDJfeJZswjHMIp6CFszg="
+              }
+            },
+            "role": "assistant"
+          }
+        }
+      ],
+      "created": 1791723388,
+      "id": "fx-4",
+      "model": "gemini-3.8-flash",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 1,
+        "prompt_tokens": 8,
+        "total_tokens": 9
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "source": "recorded",
+  "recorded": "2026-10-11",
+  "provider": "gemini",
+  "case": "stream-sse",
+  "request": {
+    "method": "POST",
+    "path": "/models/gemini-3.8-flash:streamGenerateContent?alt=sse",
+    "body": {
+      "contents": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "Reply with the single word: pong"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/event-stream"
+    },
+    "text": "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"pong\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 8,\"candidatesTokenCount\": 1,\"totalTokenCount\": 91,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 8}],\"thoughtsTokenCount\": 82,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.8-flash\",\"responseId\": \"fx-2\"}\r\n\r\ndata: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"\",\"thoughtSignature\": \"EuQDCuEDAWkUfRNnLGpSTc2ez3yUbTWVaN+fqkQzInoTaQFuxTmMT7vvkRvfD7KT1RtEe0tztXonQUXduccmtkd9hDrNNYOeXjAB/1Ti6QDiuTsLbEykJ5oEiL86/tIvhXwC3R/HhlRfHbsXAca8PcWBhpDBwPi2lUpWxOwcXvfBdZLbmoHFAb6iAWAenxHf+bu1/bZyp37lmFG6zA3hSFJSItgo6GCsiLQKC8qIVWyWuuv+2ppp0V3/voY/qkYhJ158WsukQ5DCgKRsFtdsmAM7htBrVmY8zb8XXD2N2FTXfLiBZyDnX2SmgGTBuVy4usBUI0WeaTPsUIOR4NZm97bQDECWI171iQU8mQWyE/NyL5uMwWi1gqx4sWUFykfn/sKBqHBCtwKQVNpp/a3IMZS/NMHzAU9nJELcsUQCo+nbi8uQ5Rvj+/vk139hd/b3I9657OshbLzFODRgn5Dht4xH12gmANUhktZqOvL9Fa40ZaS0FDuavM51kEJXw2DFB/M4C/HJo95rZbPDdwPQyCZcgJgn7Xl4eeo+Enmipf2WQ5wjH/9ic+zj48mLhFfZDRo7BVeC35oreOMkil7aNkgrG+Rt3qYeA16JLTO8amM8AwaZoMxTmTv9Y8JD2q9HkW1zwPujkQ==\"}],\"role\": \"model\"},\"finishReason\": \"STOP\",\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 8,\"candidatesTokenCount\": 1,\"totalTokenCount\": 91,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 8}],\"thoughtsTokenCount\": 82,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.8-flash\",\"responseId\": \"fx-2\"}\r\n\r\n"
+  }
+}

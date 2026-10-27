@@ -1,0 +1,82 @@
+{
+  "source": "recorded",
+  "recorded": "2026-10-11",
+  "provider": "gemini-openai",
+  "case": "tools-1",
+  "request": {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+      "model": "gemini-3.8-flash",
+      "max_tokens": 2048,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "description": "The current weather in a city.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string",
+                  "description": "The city name"
+                }
+              },
+              "required": [
+                "city"
+              ]
+            }
+          }
+        }
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is the weather in Paris right now? Use the get_weather tool, then answer in one sentence."
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "extra_content": {
+                  "google": {
+                    "thought_signature": "EoQCCoECAWkUfRPExCME2qdld94+12ge8c8+UkF4qmPS1W1DqZS4fAg0E3zsIKXt8snvnaCMBz1cU35JxvOQATv/bmMQzLOEjX6G8i2g+FIme9kpKS9poLe0e+0k2dAmllMpRo0pNsnOPQRDixc2NU3+ByXsmbXGHRlPXVNhD6a7whClkdVH06fPIpi2dk96ua2RMxhhk68p96Bdb/eSPURmu7jvG5hRGuMSoFtOon97fSsauvPpgQmjSJpLdUWkUy2FAwL9el+vRWheVsKuawBCu5LL19ntT5rEbey5jW4bp3t44q80IxQiEI+tW2wRxivIq3M1PyHTWsURtToIDN2zQk29wwY="
+                  }
+                },
+                "function": {
+                  "arguments": "{\"city\":\"Paris\"}",
+                  "name": "get_weather"
+                },
+                "id": "fx-11",
+                "type": "function"
+              }
+            ]
+          }
+        }
+      ],
+      "created": 1791723438,
+      "id": "fx-12",
+      "model": "gemini-3.8-flash",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 16,
+        "prompt_tokens": 75,
+        "total_tokens": 130
+      }
+    }
+  }
+}

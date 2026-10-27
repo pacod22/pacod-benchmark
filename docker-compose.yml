@@ -1,0 +1,138 @@
+# pacod-benchmark's own services (the app file): the API and the UI. The shared components they
+# need (PostgreSQL, pacod-id, Caddy) come from docker-compose.standalone.yml on their own, or from
+# pacod-demo's platform.yml in the full stack (pacod-demo/docs/NETWORK.md).
+#
+#   make up        this file, docker-compose.standalone.yml and docker-compose.dev.yml
+#
+# The API listens on pacod-admin-net alone (bench-api-internal:8190): only the UI's server calls
+# it. It calls pacod-gw's management API (pacod-gw-admin:8081) and pacod-id's internal listener
+# (pacod-id-internal:8071) on that network too, and the load agents over "bench-agents".
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-locked-down: &locked-down
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: ["/tmp:size=16m"]
+
+services:
+  bench-api:
+    # Built from this checkout when the image is missing (pacod-demo's make build too).
+    build:
+      context: .
+      dockerfile: deploy/docker/rust.Dockerfile
+    image: ${BENCH_REGISTRY:-}pacod-bench:${BENCH_VERSION:-0.1.0}
+    container_name: bench-api
+    <<: *locked-down
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: bench-api
+      RUST_LOG: ${BENCH_LOG_LEVEL:-info,sqlx=warn}
+      BENCH_LOG_FORMAT: ${BENCH_LOG_FORMAT:-json}
+      DATABASE_URL: postgres://bench:${BENCH_DB_PASSWORD:-}@pacod-postgres:5432/bench
+      # On pacod-admin-net alone; metrics on pacod-net for Prometheus.
+      BENCH_LISTEN: bench-api-internal:8190
+      BENCH_METRICS_LISTEN: 0.0.0.0:9190
+      BENCH_AUTH: ${BENCH_AUTH:-oidc}
+      BENCH_DEV_TOKEN: ${BENCH_DEV_TOKEN:-}
+      BENCH_ID_ISSUER: ${BENCH_ID_ISSUER:-}
+      BENCH_ID_INTERNAL_URL: http://pacod-id-internal:8071
+      BENCH_ID_CLIENT_ID: pacod-bench-service
+      BENCH_ID_CLIENT_SECRET: ${BENCH_ID_SERVICE_SECRET:-}
+      # The gateway the benchmark manages (none when empty), its admin token, the mock as the
+      # gateway reaches it, and what only the operator knows about the deployment.
+      BENCH_GW_NAME: ${BENCH_GW_NAME:-gateway}
+      BENCH_GW_ADMIN_URL: ${BENCH_GW_ADMIN_URL:-}
+      BENCH_GW_ADMIN_TOKEN: ${BENCH_GW_ADMIN_TOKEN:-}
+      BENCH_LOAD_MOCK_URL: ${BENCH_LOAD_MOCK_URL:-http://gw-load-mock:9000}
+      BENCH_GW_DATA_PLANE: ${BENCH_GW_DATA_PLANE:-}
+      BENCH_GW_DECLARED: ${BENCH_GW_DECLARED:-}
+      BENCH_GW_CONSOLE_URL: ${BENCH_GW_CONSOLE_URL:-}
+      # The load agents (name=URL,…), the token they share with the tester, where they stand,
+      # and the mock as they reach it (for the baseline cells).
+      BENCH_AGENTS: ${BENCH_AGENTS:-}
+      BENCH_AGENT_TOKEN: ${BENCH_AGENT_TOKEN:-}
+      BENCH_AGENT_PLACEMENT: ${BENCH_AGENT_PLACEMENT:-}
+      BENCH_BASELINE_MOCK_URL: ${BENCH_BASELINE_MOCK_URL:-}
+      BENCH_MAX_CELLS: ${BENCH_MAX_CELLS:-256}
+      BENCH_MAX_DURATION: ${BENCH_MAX_DURATION:-14400}
+    depends_on:
+      pacod-db-init:
+        condition: service_completed_successfully
+        required: false
+      pacod-id:
+        condition: service_healthy
+        required: false
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/pacod-bench", "healthcheck", "http://bench-api-internal:8190/api/v1/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+      start_interval: 1s
+    networks:
+      pacod-net:
+      pacod-admin-net:
+        aliases: [bench-api-internal]
+      bench-agents:
+    logging: *logging
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 256M }
+
+  bench-ui:
+    build:
+      context: .
+      dockerfile: deploy/docker/ui.Dockerfile
+    image: ${BENCH_REGISTRY:-}pacod-bench-ui:${BENCH_VERSION:-0.1.0}
+    container_name: bench-ui
+    <<: *locked-down
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: bench-ui
+      BENCH_API_URL: http://bench-api-internal:8190
+      BENCH_AUTH: ${BENCH_AUTH:-oidc}
+      BENCH_DEV_TOKEN: ${BENCH_DEV_TOKEN:-}
+      BENCH_ID_ISSUER: ${BENCH_ID_ISSUER:-}
+      BENCH_ID_INTERNAL_URL: http://pacod-id-internal:8071
+      BENCH_UI_CLIENT_ID: pacod-bench-ui
+      BENCH_UI_CLIENT_SECRET: ${BENCH_ID_UI_SECRET:-}
+      BENCH_UI_SESSION_SECRET: ${BENCH_UI_SESSION_SECRET:-}
+      BENCH_ORIGIN: ${BENCH_ORIGIN:-http://bench.localhost:18380}
+      # adapter-node 6 has no ORIGIN variable: the origin is the Host header plus this header,
+      # both of which Caddy passes. Without them form posts fail the CSRF check.
+      PROTOCOL_HEADER: x-forwarded-proto
+      ADDRESS_HEADER: x-forwarded-for
+      XFF_DEPTH: "1"
+      HOST: 0.0.0.0
+      PORT: "3000"
+    depends_on:
+      bench-api:
+        condition: service_healthy
+    healthcheck:
+      # Any answer short of a server error: a redirect to the public origin is one too.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/no-access',{redirect:'manual'}).then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+      start_interval: 1s
+    networks: [pacod-net, pacod-admin-net]
+    logging: *logging
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }
+
+networks:
+  pacod-net:
+    external: true
+  pacod-admin-net:
+    external: true
+  # The API towards the load agents: the standalone stack's own, or agents on other machines.
+  bench-agents:
+    name: bench-agents

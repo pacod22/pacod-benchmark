@@ -1,0 +1,23 @@
+# An open loop: calls a second, started on time whether or not earlier ones have ended, as
+# independent clients would. Where the gateway falls behind, calls pile up and are not started.
+name: Rate steps
+description: Four steps of calls a second, in both modes.
+base:
+  request: { interface: openai, mode: managed, stream: true, prompt_words: 60, max_tokens: 64 }
+  mock: { family: openai, delay_ms: 200, chunk_delay_ms: 20, chunks: 20 }
+  load:
+    mode: rate
+    stages:
+      - { duration_s: 0, target: 50 }
+      - { duration_s: 30, target: 50 }
+      - { duration_s: 0, target: 100 }
+      - { duration_s: 30, target: 100 }
+      - { duration_s: 0, target: 200 }
+      - { duration_s: 30, target: 200 }
+      - { duration_s: 0, target: 400 }
+      - { duration_s: 30, target: 400 }
+    max_in_flight: 2000
+    timeout_s: 60
+    warmup_s: 5
+axes:
+  request.mode: [managed, proxy]

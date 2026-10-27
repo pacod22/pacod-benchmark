@@ -1,0 +1,14 @@
+# What the gateway adds at three provider latencies: its overhead should not grow with them.
+name: Gateway overhead by provider latency
+description: The mock answering in 20, 200 and 1000 ms, in both modes.
+base:
+  request: { interface: openai, mode: managed, stream: true, prompt_words: 60, max_tokens: 64 }
+  mock: { family: openai, delay_ms: 200, chunk_delay_ms: 20, chunks: 20 }
+  load:
+    mode: concurrency
+    stages: [{ duration_s: 0, target: 20 }, { duration_s: 60, target: 20 }]
+    timeout_s: 120
+    warmup_s: 5
+axes:
+  mock.delay_ms: [20, 200, 1000]
+  request.mode: [managed, proxy]

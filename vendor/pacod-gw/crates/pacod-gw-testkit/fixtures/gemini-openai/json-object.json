@@ -1,0 +1,55 @@
+{
+  "source": "recorded",
+  "recorded": "2026-10-11",
+  "provider": "gemini-openai",
+  "case": "json-object",
+  "request": {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+      "model": "gemini-3.8-flash",
+      "max_tokens": 512,
+      "response_format": {
+        "type": "json_object"
+      },
+      "messages": [
+        {
+          "role": "user",
+          "content": "Answer in JSON with the key \"word\" set to pong."
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": "{\"word\": \"pong\"}",
+            "extra_content": {
+              "google": {
+                "thought_signature": "EvgDCvUDAWkUfRN4S8n3b4uRdwSWciu54Ez1LkPvambrb9FewoGlIgu+UiIXEeok9QEqFEhGDhil1hD+bKG72teDqbesRV7BNIbdEF9wHoEhOnpkQP/pQnI7qkMbk9gJWlaryLHVdboVS0n0DQC6FgwXUkznqTxMvbxmBMc7GQRfbJldqxzKRLCDUjF8lxUUAuDVtYuUaVS+/cHkMkyjNnHSuUawIOGe6TrH4JumWCQBZK9t5BYhoKD9Wrpk6KSAEIYUpMkmMFJxR7aGIj7IMnxQDW7XoHTFT2Qsaz2lwjEw6cvtV2lYHuFCIBn9STqvoPlebs47UaKnV23cZB57mDkNd50BOm/HZ4LsCCHLXLCTCUzJoTNVe/surL8iiH7+BzPU1YsZqkeGekYbgWCgvV/iWTnhGSFmirTgyRladjJnERQAX0tQOHNWb8/BNC8lm6pcx44TnhTzTvgU+dlE7koIkWz/Ptj+gOAqtBNczYjRNq//Qs5Bhm4aw63Ee7S32wLUmcKEYtJLnGajAmJ6BdI9N6iftd3aKNpRQjBjaDhdUKWUazkFXfMKvPiRwwrJqFxNYy1tAOfu4LV7KWdk9iYm5JivjgYabpgNeuhnheSz3Qy5ZIaLkLY9fNxf+obUI8JHs2s7YVOA8E7XRgWNPVkRuBwoBXtUP2vI"
+              }
+            },
+            "role": "assistant"
+          }
+        }
+      ],
+      "created": 1791723459,
+      "id": "fx-20",
+      "model": "gemini-3.8-flash",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 6,
+        "prompt_tokens": 14,
+        "total_tokens": 139
+      }
+    }
+  }
+}

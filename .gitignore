@@ -1,0 +1,20 @@
+# Rust
+/target/
+
+# UI
+node_modules/
+ui/.svelte-kit/
+ui/build/
+
+# Native binaries (scripts/build-binaries.sh)
+/dist/
+
+# Local config and secrets
+.env
+.state/
+
+.DS_Store
+.idea/
+# Local settings of coding assistants
+.claude/
+.kilo/

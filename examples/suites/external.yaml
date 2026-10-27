@@ -1,0 +1,17 @@
+# An external target (pacod-gw-lite, another installation, another product): load levels only,
+# since the benchmark sets nothing up there. A target that may reach a paid provider needs
+# max_calls in every cell. Declare the target's mock so that its cells line up with other
+# targets' behind the same mock.
+name: External target
+description: Three load levels on a target the benchmark does not manage.
+base:
+  request: { interface: openai, mode: managed, stream: true, prompt_words: 60, max_tokens: 64 }
+  mock: { family: openai, delay_ms: 200, chunk_delay_ms: 20, chunks: 20 }
+  load:
+    mode: concurrency
+    stages: [{ duration_s: 0, target: 5 }, { duration_s: 30, target: 5 }]
+    timeout_s: 120
+    warmup_s: 5
+    max_calls: 20000
+axes:
+  load.target: [5, 20, 50]

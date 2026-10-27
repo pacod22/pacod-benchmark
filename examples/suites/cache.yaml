@@ -1,0 +1,15 @@
+# The response cache off and on. Every call of a cell sends the same body, so with the cache on
+# nearly every call after the first is answered from it: this measures a cache hit, not a mix.
+name: Response cache
+description: The cache off and enforcing, at two load levels (managed mode only).
+base:
+  request: { interface: openai, mode: managed, stream: true, prompt_words: 60, max_tokens: 64 }
+  mock: { family: openai, delay_ms: 200, chunk_delay_ms: 20, chunks: 20 }
+  load:
+    mode: concurrency
+    stages: [{ duration_s: 0, target: 10 }, { duration_s: 60, target: 10 }]
+    timeout_s: 120
+    warmup_s: 5
+axes:
+  workspace.cache: ["off", enforce]
+  load.target: [10, 50]

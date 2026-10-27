@@ -1,0 +1,15 @@
+# Same dialect against translated: OpenAI calls to the OpenAI mock (patched in place) and to the
+# Anthropic and Gemini mocks (translated through the neutral model), streamed and whole.
+name: Translation cost
+description: OpenAI calls to each mock family, streamed and whole.
+base:
+  request: { interface: openai, mode: managed, stream: true, prompt_words: 60, max_tokens: 64 }
+  mock: { family: openai, delay_ms: 200, chunk_delay_ms: 20, chunks: 20 }
+  load:
+    mode: concurrency
+    stages: [{ duration_s: 0, target: 20 }, { duration_s: 60, target: 20 }]
+    timeout_s: 120
+    warmup_s: 5
+axes:
+  mock.family: [openai, anthropic, gemini]
+  request.stream: [true, false]

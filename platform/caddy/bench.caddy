@@ -1,0 +1,39 @@
+# pacod-benchmark's UI behind the shared edge (pacod-caddy). Imported by a Caddyfile that holds the
+# global options; BENCH_SITE is the UI's address, e.g. http://bench.localhost, and BENCH_ORIGIN
+# must be the same. The API is never routed: only the UI's server calls it, on pacod-admin-net.
+#
+# Caddy sends X-Forwarded-For/-Proto/-Host and keeps the Host; bench-ui takes the origin from the
+# Host and X-Forwarded-Proto (adapter-node's PROTOCOL_HEADER). A run's live view is a stream of
+# server-sent events: flush_interval -1 passes each event on at once.
+#
+# Access log (pacod-demo/docs/LOGGING.md, section 6): stdout, in BENCH_CADDY_LOG_FORMAT, console
+# (Caddy's text, the default) or json; sign-in codes, state, return paths, tokens and keys are
+# removed from the query, the Referer and API-key headers and the redirects' Location dropped.
+{$BENCH_SITE:http://bench.localhost} {
+	reverse_proxy bench-ui:3000 {
+		flush_interval -1
+	}
+
+	log {
+		output stdout
+		format filter {
+			wrap {$BENCH_CADDY_LOG_FORMAT:console}
+			fields {
+				request>uri query {
+					delete token
+					delete code
+					delete state
+					delete next
+					delete flow
+					delete id_token_hint
+					delete login_hint
+					delete key
+				}
+				request>headers>Referer delete
+				request>headers>X-Api-Key delete
+				request>headers>X-Goog-Api-Key delete
+				resp_headers>Location delete
+			}
+		}
+	}
+}

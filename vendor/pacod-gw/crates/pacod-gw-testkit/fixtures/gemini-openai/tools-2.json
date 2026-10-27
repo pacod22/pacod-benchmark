@@ -1,0 +1,96 @@
+{
+  "source": "recorded",
+  "recorded": "2026-10-11",
+  "provider": "gemini-openai",
+  "case": "tools-2",
+  "request": {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+      "model": "gemini-3.8-flash",
+      "max_tokens": 2048,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "description": "The current weather in a city.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string",
+                  "description": "The city name"
+                }
+              },
+              "required": [
+                "city"
+              ]
+            }
+          }
+        }
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is the weather in Paris right now? Use the get_weather tool, then answer in one sentence."
+        },
+        {
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "extra_content": {
+                "google": {
+                  "thought_signature": "EoQCCoECAWkUfRPExCME2qdld94+12ge8c8+UkF4qmPS1W1DqZS4fAg0E3zsIKXt8snvnaCMBz1cU35JxvOQATv/bmMQzLOEjX6G8i2g+FIme9kpKS9poLe0e+0k2dAmllMpRo0pNsnOPQRDixc2NU3+ByXsmbXGHRlPXVNhD6a7whClkdVH06fPIpi2dk96ua2RMxhhk68p96Bdb/eSPURmu7jvG5hRGuMSoFtOon97fSsauvPpgQmjSJpLdUWkUy2FAwL9el+vRWheVsKuawBCu5LL19ntT5rEbey5jW4bp3t44q80IxQiEI+tW2wRxivIq3M1PyHTWsURtToIDN2zQk29wwY="
+                }
+              },
+              "function": {
+                "arguments": "{\"city\":\"Paris\"}",
+                "name": "get_weather"
+              },
+              "id": "fx-11",
+              "type": "function"
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "fx-11",
+          "content": "{\"city\":\"Paris\",\"temperature_c\":18,\"sky\":\"light rain\"}"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": "The weather in Paris is currently 18°C with light rain.",
+            "extra_content": {
+              "google": {
+                "thought_signature": "ErcBCrQBAWkUfRPhoJVNupQQoN3W/DZYoQgjSRgRfmUZhT9GNL+cHHYatrHqg3hwte2hkUWSWbIiCXHgJxHC1QmoXGE5L23RtM3pInfB4i/MxzR63LQnj1ZpKHpN7Lp+dCimRRK+lXnKP6hFqnqFJvZ1/QzEirty3viGNhHuGclXuWqpway3s+ZbJDi1lwAkyLgNA83pcS9Fif6MqzwbX/GIDsAfWsrgu2+t9skXo/8amMYOe7rghZ80"
+              }
+            },
+            "role": "assistant"
+          }
+        }
+      ],
+      "created": 1791723441,
+      "id": "fx-13",
+      "model": "gemini-3.8-flash",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 15,
+        "prompt_tokens": 160,
+        "total_tokens": 199
+      }
+    }
+  }
+}

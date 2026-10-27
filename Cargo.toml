@@ -1,0 +1,64 @@
+[workspace]
+resolver = "3"
+members = ["crates/pacod-bench-engine", "crates/pacod-bench"]
+# pacod-gw and pacod-id, vendored by scripts/vendor-pacod-gw.sh and scripts/vendor-pacod-id.sh:
+# their crates are path dependencies, not members.
+exclude = ["vendor"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+rust-version = "1.90"
+# Built into images and binaries, never published to crates.io.
+publish = false
+
+[workspace.dependencies]
+pacod-bench-engine = { path = "crates/pacod-bench-engine" }
+# pacod-gw (vendor/pacod-gw, pinned in vendor/pacod-gw/VERSION): the load agent's contract and
+# histograms, the benchmark report's contract, the log format, and the mock provider and
+# in-process helpers of the tests.
+pacod-gw-bench-report = { path = "vendor/pacod-gw/crates/pacod-gw-bench-report" }
+pacod-gw-load = { path = "vendor/pacod-gw/crates/pacod-gw-load" }
+pacod-gw-logging = { path = "vendor/pacod-gw/crates/pacod-gw-logging" }
+pacod-gw-testkit = { path = "vendor/pacod-gw/crates/pacod-gw-testkit" }
+# pacod-id (vendor/pacod-id, pinned in vendor/pacod-id/VERSION): the rules engine and the client
+# library the API checks its callers with.
+pacod-id-authz = { path = "vendor/pacod-id/crates/pacod-id-authz" }
+pacod-id-client = { path = "vendor/pacod-id/crates/pacod-id-client" }
+
+# The versions pacod-gw uses, so that one copy of each is built.
+anyhow = "1"
+axum = { version = "0.8", features = ["http2", "macros"] }
+bytes = "1"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive", "env"] }
+futures-util = "0.3"
+hex = "0.4"
+mimalloc = { version = "0.1", default-features = false }
+parking_lot = "0.12"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream", "http2"] }
+ring = "0.17"
+schemars = { version = "1", features = ["chrono04", "uuid1"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value", "preserve_order", "float_roundtrip"] }
+# Suites in YAML: pure Rust, reading only, as pacod-id's rules engine reads its manifests.
+serde-saphyr = { version = "1.3", default-features = false, features = ["deserialize"] }
+subtle = "2"
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls-ring-webpki", "postgres", "json", "chrono", "migrate", "macros"] }
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+toml = "0.8"
+tower = { version = "0.5", features = ["limit", "util"] }
+tracing = "0.1"
+url = "2"
+uuid = { version = "1", features = ["v4", "v7", "serde"] }
+
+# test-only
+proptest = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = "symbols"

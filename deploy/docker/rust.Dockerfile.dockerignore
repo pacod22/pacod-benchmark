@@ -1,0 +1,15 @@
+# Build context for rust.Dockerfile: the Cargo workspace and the vendored crates, nothing else.
+*
+
+!Cargo.toml
+!Cargo.lock
+!crates
+!authz
+!vendor/pacod-gw
+!vendor/pacod-id/crates
+
+# Never part of a build, wherever they are.
+**/target
+**/.DS_Store
+**/.env
+**/.env.*

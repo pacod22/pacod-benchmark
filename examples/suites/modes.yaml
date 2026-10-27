@@ -1,0 +1,17 @@
+# Managed against proxy mode, at three load levels, behind the same mock. Each load level gets a
+# baseline straight to the mock: the overhead of a cell is its latency minus its baseline's.
+#   pacod-bench plan --suite examples/suites/modes.yaml
+name: Managed against proxy mode
+description: The same calls in both modes at three load levels, behind the same mock.
+base:
+  request: { interface: openai, mode: managed, stream: true, prompt_words: 60, max_tokens: 64 }
+  mock: { family: openai, delay_ms: 200, chunk_delay_ms: 20, chunks: 20 }
+  workspace: { cache: "off", audit: on_request }
+  load:
+    mode: concurrency
+    stages: [{ duration_s: 0, target: 10 }, { duration_s: 60, target: 10 }]
+    timeout_s: 120
+    warmup_s: 5
+axes:
+  request.mode: [managed, proxy]
+  load.target: [10, 50, 100]

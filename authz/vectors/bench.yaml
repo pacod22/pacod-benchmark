@@ -1,0 +1,45 @@
+# What each benchmark role may do, as the API's checks (crates/pacod-bench/src/api/auth.rs) and
+# the UI's access.ts ask it. The API's tests run this file through pacod-id's rules engine;
+# format: vendor/pacod-id/policy/engine-vectors/README.md.
+manifests: [bench]
+cases:
+  - name: a viewer reads results and nothing else
+    subject: { kind: user, bindings: [{ role: bench.viewer, path: [platform] }] }
+    checks:
+      - { allowed: bench.results.read, at: [platform], expect: true }
+      - { allowed: bench.suites.manage, at: [platform], expect: false }
+      - { allowed: bench.runs.start, at: [platform], expect: false }
+      - { allowed: bench.reports.publish, at: [platform], expect: false }
+      - { allowed: bench.targets.manage, at: [platform], expect: false }
+      - { holds_any_at: platform, expect: true }
+
+  - name: an operator runs suites and publishes their reports
+    subject: { kind: user, bindings: [{ role: bench.operator, path: [platform] }] }
+    checks:
+      - { allowed: bench.results.read, at: [platform], expect: true }
+      - { allowed: bench.suites.manage, at: [platform], expect: true }
+      - { allowed: bench.runs.start, at: [platform], expect: true }
+      - { allowed: bench.reports.publish, at: [platform], expect: true }
+      - { allowed: bench.targets.manage, at: [platform], expect: false }
+      - { allowed: bench.members.manage, at: [platform], expect: false }
+      - { can_grant: bench.viewer, at: [platform], expect: not_permitted }
+
+  - name: an admin does everything, and gives every role
+    subject: { kind: user, bindings: [{ role: bench.admin, path: [platform] }] }
+    checks:
+      - { allowed: bench.targets.manage, at: [platform], expect: true }
+      - { allowed: bench.members.manage, at: [platform], expect: true }
+      - { has_role: bench.admin, scope: platform, expect: true }
+      - { can_grant: bench.admin, at: [platform], expect: ok }
+      - { can_grant: bench.operator, at: [platform], expect: ok }
+
+  - name: nobody holds a role without a binding
+    subject: { kind: user, bindings: [] }
+    checks:
+      - { allowed: bench.results.read, at: [platform], expect: false }
+      - { holds_any_at: platform, expect: false }
+
+  - name: another product's roles grant nothing here
+    subject: { kind: user, bindings: [{ role: gw.platform_admin, path: [platform] }] }
+    checks:
+      - { allowed: bench.results.read, at: [platform], expect: false }

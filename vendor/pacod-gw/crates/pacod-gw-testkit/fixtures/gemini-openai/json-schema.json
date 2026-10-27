@@ -1,0 +1,71 @@
+{
+  "source": "recorded",
+  "recorded": "2026-10-11",
+  "provider": "gemini-openai",
+  "case": "json-schema",
+  "request": {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+      "model": "gemini-3.8-flash",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Reply with the single word: pong"
+        }
+      ],
+      "max_tokens": 1024,
+      "response_format": {
+        "type": "json_schema",
+        "json_schema": {
+          "name": "answer",
+          "strict": true,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "word": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "word"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": "{\"word\":\"pong\"}",
+            "extra_content": {
+              "google": {
+                "thought_signature": "EqkFCqYFAWkUfRNkWlf4E8ajuT/mUo2otOZnIyxXCrmjQnaL2xulDjqhxM4GAXvgizrPxadVSxsIgnosK+2rm2WQPBGIg7IQzXhq6vXMu7WzSE1aRYR6YdnCArausP751Kl1ypsSKBY18iU2JA8DUer2nQ10SXcH7gWbXAP4yIQSUXr2ejk1hVPbJzA9foz1hlqWAAdYhAy9+DAl+SBGLl625+i9c1a4p8B5zQDc2FzD1y4ppV7RscgZNu8muB4rLJcdplgLObqNMcN7p60ibx9IGJSUq7Gn51ohIDdrSoLcCcFRmmKn0IDfPQtgk7Fd11Aivi+2DszsBhlOH/ObRWYLZ6CzNkABAN4821r8/2wLx9y4hGBRIrAwAod+GpkI27FJaze8B6sJhtCsJ/v64oG/RGsJW5mxasSGdnId1B7L6bo38IvDvyIwlJWXOdMdLuKqBhv688cFXIBmXr0yD244n9BKM43BlDKW2O4OORPKRlZ0jdD7zAenX3VtgHBImG9OZ5BIUvlQ1pXtu129wK+pZZfHIJ9Smyw0gi8O4zk6FKrTtnketF6lsSTwKIf+36QnIDgHemnEnT4hDN0o4dlr5cMcRDYzcpL/7z0i84SEoYtnGvsWe9jd/5pagZVy8/DhC9XlzXHdLMNcn21t2wiPsFNkJEVW5WscHz3pTBGjdD1971V1Fx4hk6Lu+IC5iYV3zqNW7eMmNThLffuM1QPD1vzzNg+luHFskX6aJm7ewX+q8HK6N6aNY0gy98nKL2n5CpGISkUFijPL5EvNEPPAZSoazWs7Ifi4DzMGBeR/+DsNc61nYvSJIp1WXv+1GBQDCxsYkCbJzUmhbo/qRGTVOV1SD1HdLLeVofIdwPnSFu3vqzMeXCCmHcSiPfNiTnK8s5P4vNuCu5VP"
+              }
+            },
+            "role": "assistant"
+          }
+        }
+      ],
+      "created": 1791723452,
+      "id": "fx-19",
+      "model": "gemini-3.8-flash",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 5,
+        "prompt_tokens": 8,
+        "total_tokens": 163
+      }
+    }
+  }
+}
