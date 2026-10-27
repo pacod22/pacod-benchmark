@@ -5,7 +5,9 @@
 # to 127.0.0.1. Each test makes a database of its own on it.
 set -euo pipefail
 
-name=bench-test-pg
+# Not bench-*: that prefix is the stack's own services, and pacod-demo's preflight takes a running
+# bench-* container for another stack (as pacod-gw's pgw-test-* and pacod-id's pid-test-pg avoid theirs).
+name=pbench-test-pg
 if ! docker ps --format '{{.Names}}' | grep -qx "$name"; then
   if docker ps -a --format '{{.Names}}' | grep -qx "$name"; then
     docker start "$name" >/dev/null
