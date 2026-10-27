@@ -2,8 +2,9 @@
 //! `pacod-gw-load-agent`, in the contract of `pacod_gw_load::contract`. The list's syntax is the
 //! tester's (`TESTER_LOAD_AGENTS`), so that one list serves both.
 //!
-//! Agents are configured by the operator only: an agent's URL receives the agent token and the
-//! keys of every cell, so it never comes from a form.
+//! An agent's URL receives the agent token and the keys of every cell: agents come from the
+//! operator's configuration, or from an admin of the benchmark (pacod-bench's `agents.rs`), never
+//! from anyone else.
 
 use std::fmt;
 use std::time::Duration;
@@ -25,7 +26,8 @@ pub struct AgentRef {
     pub placement: Placement,
 }
 
-fn valid_name(name: &str) -> bool {
+/// A lower-case name of at most 32: letters, digits, `-`.
+pub fn valid_name(name: &str) -> bool {
     let b = name.as_bytes();
     !b.is_empty()
         && b.len() <= 32

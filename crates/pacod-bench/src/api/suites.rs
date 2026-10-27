@@ -17,6 +17,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/suites", get(list).post(create))
         .route("/suites/{id}", get(one).put(update).delete(remove))
+        .route("/suites/{id}/copy", post(copy))
         .route("/plan", post(plan))
 }
 
@@ -59,12 +60,13 @@ pub fn plan_on(st: &AppState, suite: &Suite, target: &TargetRow) -> ApiResult<Pl
         let declared = serde_json::from_value(target.definition["mock"].clone()).ok().flatten();
         notes.extend(with_declared_mock(&mut suite, declared));
     }
-    let mut plan = expand(&suite, target_kind(&target.kind), st.config.max_cells).map_err(ApiError::invalid)?;
+    let limits = st.settings.effective();
+    let mut plan = expand(&suite, target_kind(&target.kind), limits.max_cells).map_err(ApiError::invalid)?;
     plan.notes.extend(notes);
-    if plan.estimate.duration_s > st.config.max_duration_s {
+    if plan.estimate.duration_s > limits.max_duration_s {
         return Err(ApiError::invalid(format!(
-            "the run would take about {} s, more than the {} s allowed (BENCH_MAX_DURATION)",
-            plan.estimate.duration_s, st.config.max_duration_s
+            "the run would take about {} s, more than the {} s allowed (the settings, at most BENCH_MAX_DURATION)",
+            plan.estimate.duration_s, limits.max_duration_s
         )));
     }
     Ok(plan)
@@ -101,8 +103,26 @@ async fn update(
     Ok(Json(json!(row.ok_or_else(|| ApiError::not_found("suite"))?)))
 }
 
+/// A new suite with the same document, named as a copy.
+async fn copy(
+    State(st): State<AppState>,
+    p: Principal,
+    Path(id): Path<String>,
+) -> ApiResult<(StatusCode, Json<Value>)> {
+    p.require("bench.suites.manage")?;
+    let row = st.store.suite(&id).await?.ok_or_else(|| ApiError::not_found("suite"))?;
+    let name: String = format!("{} (copy)", row.name).chars().take(80).collect();
+    let mut doc = row.document.clone();
+    doc["name"] = json!(name);
+    let copied = st.store.insert_suite(&name, &doc, &p.display).await?;
+    Ok((StatusCode::CREATED, Json(json!(copied))))
+}
+
 async fn remove(State(st): State<AppState>, p: Principal, Path(id): Path<String>) -> ApiResult<StatusCode> {
     p.require("bench.suites.manage")?;
+    if let Some(name) = st.store.schedule_of_suite(&id).await? {
+        return Err(ApiError::conflict(format!("the schedule {name} runs this suite; change or remove it first")));
+    }
     if st.store.delete_suite(&id).await? { Ok(StatusCode::NO_CONTENT) } else { Err(ApiError::not_found("suite")) }
 }
 

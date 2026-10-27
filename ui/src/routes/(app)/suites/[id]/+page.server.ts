@@ -50,15 +50,23 @@ export const actions: Actions = {
 		});
 		if (!saved.ok) return fail(saved.status, { message: saved.problem.message });
 		const key = String(form.get('key') ?? '').trim();
+		// None ticked: the settings' default agents, else every one.
+		const agents = form.getAll('agents').map(String);
 		const r = await locals.api.post<RunRow>('/runs', {
 			suite_id: params.id,
 			target_id: String(form.get('target_id') ?? ''),
 			label: String(form.get('label') ?? '').trim(),
 			acknowledge_cost: form.get('acknowledge_cost') === 'on',
-			...(key ? { key } : {})
+			...(key ? { key } : {}),
+			...(agents.length ? { agents } : {})
 		});
 		if (!r.ok) return fail(r.status, { message: r.problem.message });
 		redirect(303, `/runs/${r.data.id}`);
+	},
+	copy: async ({ locals, params }) => {
+		const r = await locals.api.post<SuiteRow>(`/suites/${encodeURIComponent(params.id)}/copy`);
+		if (!r.ok) return fail(r.status, { message: r.problem.message });
+		redirect(303, `/suites/${r.data.id}`);
 	},
 	delete: async ({ locals, params }) => {
 		const r = await locals.api.del(`/suites/${encodeURIComponent(params.id)}`);

@@ -30,6 +30,7 @@ pacod-id-client = { path = "vendor/pacod-id/crates/pacod-id-client" }
 # The versions pacod-gw uses, so that one copy of each is built.
 anyhow = "1"
 axum = { version = "0.8", features = ["http2", "macros"] }
+base64 = "0.22"
 bytes = "1"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive", "env"] }
@@ -54,6 +55,7 @@ tower = { version = "0.5", features = ["limit", "util"] }
 tracing = "0.1"
 url = "2"
 uuid = { version = "1", features = ["v4", "v7", "serde"] }
+zeroize = "1"
 
 # test-only
 proptest = "1"

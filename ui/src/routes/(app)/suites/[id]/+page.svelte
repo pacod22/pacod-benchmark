@@ -527,6 +527,22 @@
 						{/if}
 					{/if}
 				</div>
+				{#if data.me.agent_names.length > 1}
+					<fieldset class="agents">
+						<legend class="small">Agents</legend>
+						{#each data.me.agent_names as name (name)}
+							<label class="check"
+								><input
+									type="checkbox"
+									name="agents"
+									value={name}
+									checked={!data.me.default_agents.length || data.me.default_agents.includes(name)}
+								/>
+								<span class="mono">{name}</span></label
+							>
+						{/each}
+					</fieldset>
+				{/if}
 				<div class="row">
 					<button class="btn btn-primary" type="submit" disabled={!targetId}
 						>Save and start the run</button
@@ -537,13 +553,27 @@
 	</section>
 
 	{#if canWrite}
-		<form method="POST" action="?/delete" use:enhance>
-			<button class="btn btn-danger" type="submit">Delete this suite</button>
-		</form>
+		<div class="row">
+			<form method="POST" action="?/copy" use:enhance>
+				<button class="btn" type="submit">Copy this suite</button>
+			</form>
+			<form method="POST" action="?/delete" use:enhance>
+				<button class="btn btn-danger" type="submit">Delete this suite</button>
+			</form>
+		</div>
 	{/if}
 </div>
 
 <style>
+	fieldset.agents {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-4);
+		border: 0;
+		padding: 0;
+		margin: 0;
+	}
+
 	.grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));

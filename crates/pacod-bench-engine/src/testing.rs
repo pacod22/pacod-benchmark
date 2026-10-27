@@ -45,6 +45,10 @@ pub async fn spawn_agent(target: &str) -> String {
 /// The management API as far as the benchmark uses it. Every call is recorded as
 /// `(method, path below /api/v1, body)`; every write answers with the next configuration
 /// version, and every version counts as applied at once.
+///
+/// Tokens: one that contains `refused` is refused (401) everywhere; one that contains `viewer`
+/// is valid but no platform admin's (`/session` says so, every other call answers 403); any other
+/// is a platform admin's.
 #[derive(Default)]
 pub struct FakeGw {
     pub calls: Mutex<Vec<(String, String, Value)>>,
@@ -74,11 +78,32 @@ impl FakeGw {
 async fn handle(State(f): State<Arc<FakeGw>>, req: Request) -> Response {
     let method = req.method().clone();
     let path = req.uri().path().trim_start_matches("/api/v1").to_owned();
+    let bearer = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .unwrap_or("")
+        .to_owned();
     let bytes: Bytes = axum::body::to_bytes(req.into_body(), 4 << 20).await.unwrap_or_default();
     let body: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
     f.calls.lock().push((method.to_string(), path.clone(), body.clone()));
     let id = || format!("id{}", f.ids.fetch_add(1, Ordering::Relaxed));
     let segments: Vec<&str> = path.trim_start_matches('/').split('/').collect();
+    let denied = |status: StatusCode| {
+        (status, axum::Json(json!({ "error": { "type": "forbidden", "message": "" } }))).into_response()
+    };
+    if bearer.contains("refused") {
+        return denied(StatusCode::UNAUTHORIZED);
+    }
+    if method == Method::GET && segments.as_slice() == ["session"] {
+        let admin = !bearer.contains("viewer");
+        let who = json!({ "id": "tok_bench", "kind": "token", "display": "pacod-bench", "platform_admin": admin });
+        return (StatusCode::OK, axum::Json(who)).into_response();
+    }
+    if bearer.contains("viewer") {
+        return denied(StatusCode::FORBIDDEN);
+    }
     let (status, answer) = match (&method, segments.as_slice()) {
         (&Method::GET, ["system", "status"]) => (
             StatusCode::OK,

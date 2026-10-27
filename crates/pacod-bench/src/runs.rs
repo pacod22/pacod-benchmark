@@ -8,14 +8,13 @@
 //! A pasted key of an external target is held in memory only, from the start request until the
 //! run begins: it is never written anywhere.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use pacod_bench_engine::agents::AgentClient;
 use pacod_bench_engine::controller::{self, CellResult, RunEvent, RunInput, RunStatus, Target};
-use pacod_bench_engine::gw::GwAdmin;
 use pacod_bench_engine::model::TargetKind;
 use pacod_bench_engine::plan::{CellKind, PlannedCell};
 use pacod_bench_engine::requests::Names;
@@ -24,7 +23,10 @@ use parking_lot::Mutex;
 use serde_json::{Value, json};
 use tokio::sync::{Notify, broadcast, mpsc, watch};
 
+use crate::agents::Agents;
 use crate::config::Config;
+use crate::gateways::Gateways;
+use crate::settings::Effective;
 use crate::store::{RunRow, Store};
 
 /// How often a running cell's seconds are written to the database.
@@ -50,7 +52,10 @@ pub struct Runs {
     store: Store,
     config: Arc<Config>,
     http: reqwest::Client,
-    gateways: Arc<BTreeMap<String, Arc<GwAdmin>>>,
+    gateways: Arc<Gateways>,
+    agents: Arc<Agents>,
+    /// Every run that ended, by id: the scheduler publishes the reports of its runs.
+    ended: mpsc::UnboundedSender<String>,
     keys: Mutex<HashMap<String, String>>,
     active: Mutex<Option<Active>>,
     wake: Notify,
@@ -62,13 +67,17 @@ impl Runs {
         store: Store,
         config: Arc<Config>,
         http: reqwest::Client,
-        gateways: Arc<BTreeMap<String, Arc<GwAdmin>>>,
+        gateways: Arc<Gateways>,
+        agents: Arc<Agents>,
+        ended: mpsc::UnboundedSender<String>,
     ) -> Runs {
         Runs {
             store,
             config,
             http,
             gateways,
+            agents,
+            ended,
             keys: Mutex::new(HashMap::new()),
             active: Mutex::new(None),
             wake: Notify::new(),
@@ -132,7 +141,9 @@ impl Runs {
         });
     }
 
-    /// Deletes what a run left on its gateway; returns what is still left.
+    /// Deletes what a run left on its gateway; returns what is still left. When the gateway
+    /// cannot be used now (its token cannot be opened), what is left is recorded as left over,
+    /// so that the gateway is not removed before it is cleaned up.
     pub async fn clean(&self, run: &RunRow) -> Vec<String> {
         let scene: Scene = serde_json::from_value(run.scene.clone()).unwrap_or_default();
         let mut left: Vec<String> = serde_json::from_value(run.leftovers.clone()).unwrap_or_default();
@@ -141,9 +152,21 @@ impl Runs {
                 left.push(p.clone());
             }
         }
-        let gw = run.target_id.as_ref().and_then(|t| self.gateways.get(t));
-        let (Some(gw), false) = (gw, left.is_empty()) else { return left };
-        let still = scene::teardown(gw, &left, &scene.orgs()).await;
+        if left.is_empty() {
+            return left;
+        }
+        let gw = match run.target_id.as_deref().map(|t| self.gateways.get(t)) {
+            Some(Ok(g)) => g,
+            Some(Err(reason)) => {
+                tracing::warn!(run_id = %run.id, %reason, left = left.len(), "a run's objects cannot be deleted now");
+                if let Err(e) = self.store.set_leftovers(&run.id, &left).await {
+                    tracing::warn!(run_id = %run.id, error = %e, "recording a run's leftovers failed");
+                }
+                return left;
+            }
+            None => return left,
+        };
+        let still = scene::teardown(&gw.gw, &left, &scene.orgs()).await;
         if let Err(e) = self.store.set_leftovers(&run.id, &still).await {
             tracing::warn!(run_id = %run.id, error = %e, "recording a run's leftovers failed");
         }
@@ -159,26 +182,15 @@ impl Runs {
         let token = self.config.agent_token.clone().ok_or("no agent token is configured (BENCH_AGENT_TOKEN)")?;
         let mut agents = Vec::new();
         for name in &names {
-            let a = self
-                .config
-                .agents
-                .iter()
-                .find(|a| &a.name == name)
-                .ok_or_else(|| format!("the agent {name} is no longer configured"))?;
-            agents.push(AgentClient::new(a.clone(), &token, self.http.clone()));
+            let a = self.agents.get(name).ok_or_else(|| format!("the agent {name} is no longer configured"))?;
+            agents.push(AgentClient::new(a.agent, &token, self.http.clone()));
         }
+        let settings = Effective::of_run(run.settings.as_ref(), &self.config);
         let def = &run.target["definition"];
         let target = match run.target["kind"].as_str() {
             Some("managed") => {
-                let id = run.target_id.clone().unwrap_or_default();
-                let gw = self.gateways.get(&id).cloned().ok_or("the gateway is no longer configured")?;
-                let g = self
-                    .config
-                    .gateways
-                    .iter()
-                    .find(|g| format!("cfg-{}", g.name) == id)
-                    .ok_or("the gateway is no longer configured")?;
-                Target::Managed { gw, mock_url: g.mock_url.clone(), data_plane: g.data_plane.clone() }
+                let g = self.gateways.get(run.target_id.as_deref().unwrap_or_default())?;
+                Target::Managed { gw: g.gw.clone(), mock_url: g.mock_url.clone(), data_plane: g.data_plane.clone() }
             }
             _ => {
                 let key = self
@@ -204,8 +216,8 @@ impl Runs {
             target,
             agents,
             plan: pacod_bench_engine::plan::Plan { cells, pruned: vec![], estimate: Default::default(), notes: vec![] },
-            baseline_url: self.config.baseline_mock_url.clone(),
-            agent_wait: Duration::from_secs(self.config.agent_wait_s),
+            baseline_url: settings.baseline_mock_url,
+            agent_wait: Duration::from_secs(settings.agent_wait_s),
         })
     }
 
@@ -227,6 +239,12 @@ impl Runs {
     }
 
     async fn execute(&self, run: RunRow) {
+        let id = run.id.clone();
+        self.go(run).await;
+        let _ = self.ended.send(id);
+    }
+
+    async fn go(&self, run: RunRow) {
         let (cancel, cancel_rx) = watch::channel(false);
         let (events, _) = broadcast::channel(1024);
         *self.active.lock() = Some(Active { id: run.id.clone(), cancel, events: events.clone() });
@@ -381,10 +399,11 @@ pub fn target_kind(kind: &str) -> TargetKind {
 }
 
 /// The agents as a run keeps them: names, URLs and where they stand.
-pub fn agents_snapshot(config: &Config, names: &[String]) -> Value {
-    let list: Vec<Value> = config
-        .agents
+pub fn agents_snapshot(agents: &Agents, names: &[String]) -> Value {
+    let list: Vec<Value> = agents
+        .all()
         .iter()
+        .map(|a| &a.agent)
         .filter(|a| names.contains(&a.name))
         .map(|a| json!({ "name": a.name, "url": a.url, "placement": a.placement }))
         .collect();

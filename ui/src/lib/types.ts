@@ -17,6 +17,9 @@ export interface Session {
 	permissions: Permission[];
 	gateways: string[];
 	agents: number;
+	agent_names: string[];
+	/** The agents a run uses when it names none; empty: every agent. */
+	default_agents: string[];
 	baseline: boolean;
 	publish: boolean;
 	console_url: string | null;
@@ -30,6 +33,8 @@ export interface AgentView {
 	name: string;
 	url: string;
 	placement: Placement;
+	/** From the configuration (BENCH_AGENTS) or added through the UI. */
+	source: 'config' | 'api';
 	reachable: boolean;
 	error?: string;
 	contract?: number;
@@ -43,6 +48,24 @@ export interface AgentView {
 		max_body_bytes: number;
 	};
 	busy?: { run_id: string; state: string } | null;
+}
+
+/** The run settings: what an admin set, over the environment's (`GET /settings`). */
+export interface RunSettings {
+	max_cells: number;
+	max_duration_s: number;
+	agent_wait_s: number;
+	baseline_mock_url: string | null;
+	/** Empty: every agent. */
+	default_agents: string[];
+	publish_target_id: string | null;
+}
+
+export interface SettingsView {
+	effective: RunSettings;
+	overrides: Partial<RunSettings>;
+	/** The environment's settings: the ceilings of the limits. */
+	environment: RunSettings;
 }
 
 export interface MockProfile {
@@ -62,6 +85,7 @@ export interface Target {
 		admin_url?: string;
 		mock_url?: string;
 		data_plane?: string | null;
+		console_url?: string | null;
 		base_url?: string;
 		model?: string;
 		provider?: string;
@@ -72,9 +96,37 @@ export interface Target {
 	declared: Record<string, unknown>;
 	observed: Observed | null;
 	observed_at: string | null;
+	/** A gateway added through the UI: a label of its admin token (never the token). */
+	token_hint: string;
+	/** Who the gateway took the token for at its last check. */
+	token_checked: TokenCheck | null;
+	/** Whether a managed gateway takes runs now; when not, why. */
+	usable: boolean;
+	unusable_reason?: string | null;
 	created_by: string;
 	created_at: string;
 	updated_at: string;
+}
+
+export interface TokenCheck {
+	display: string;
+	kind: string;
+	id: string;
+	platform_admin: boolean;
+	checked_at: string;
+}
+
+/** What the form for a new gateway starts from (`GET /targets/presets`). */
+export interface TargetPresets {
+	/** The gateway of this stack, and the target that already is it. */
+	internal: {
+		admin_url: string;
+		mock_url: string;
+		data_plane: string | null;
+		taken_by: { id: string; name: string } | null;
+	};
+	/** BENCH_KEK is set: a gateway's token can be kept. */
+	can_keep_tokens: boolean;
 }
 
 /** What a managed gateway says about itself. */
@@ -339,4 +391,29 @@ export interface RunPage {
 	cells: CellRow[];
 	publications: Publication[];
 	measurement?: Measurement;
+}
+
+/** When a schedule fires, in UTC (crates/pacod-bench/src/schedules.rs). */
+export type Cadence =
+	{ kind: 'daily'; at: string; weekdays: number[] } | { kind: 'every'; hours: number };
+
+export interface Schedule {
+	id: string;
+	name: string;
+	suite_id: string;
+	target_id: string;
+	/** None: the settings' default agents, else every one. */
+	agents: string[] | null;
+	label: string;
+	cadence: Cadence;
+	enabled: boolean;
+	publish: boolean;
+	created_by: string;
+	created_by_name: string;
+	next_fire_at: string | null;
+	last_fire_at: string | null;
+	last_run_id: string | null;
+	last_outcome: string;
+	created_at: string;
+	updated_at: string;
 }

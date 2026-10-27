@@ -41,7 +41,8 @@ open http://localhost:18380     # admin@pacod-bench.test / pacod-bench-dev
 
 Without a gateway token the benchmark manages no gateway: register an external target, or start
 the minimal gateway it brings (`make dev-up PROFILE=dev-gateway`). To manage the development
-gateway, mint a platform-admin token there and put both in `.env`
+gateway, mint a platform-admin token there and add it in the UI (**Targets → Add a gateway the
+benchmark manages → The gateway of this stack**), or put both in `.env`
 ([runbook](docs/runbook.md), section 3):
 
 ```sh

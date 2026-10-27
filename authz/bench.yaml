@@ -9,11 +9,13 @@
 #   suites.manage     write and delete suites
 #   runs.start        start and cancel runs
 #   reports.publish   publish a run's report to pacod-gw
-#   targets.manage    register and remove external targets, delete runs, clean leftovers
+#   targets.manage    add, change and remove gateways (with their admin tokens), external
+#                     targets and agents; change the run settings; delete runs, clean leftovers
 #   members.manage    give and take benchmark roles
 #
 # A run on a gateway the benchmark manages acts there with the benchmark's own admin token
-# (BENCH_GW_ADMIN_TOKEN), not with the caller's rights: runs.start lets its holder create and
+# (BENCH_GW_ADMIN_TOKEN, or the one sealed with a gateway added through the UI), not with the
+# caller's rights: runs.start lets its holder create and
 # delete scratch organisations, workspaces and keys on that gateway, and targets.manage lets its
 # holder aim the agents at any URL. Grant them to people trusted with that
 # (docs/threat-model.md).

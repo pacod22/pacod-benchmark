@@ -1,7 +1,6 @@
 //! pacod-benchmark's service: the API the UI calls, the run queue and the database, and the
 //! command line that runs a suite without them. `main.rs` is the binary around it.
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -10,21 +9,27 @@ use anyhow::Context;
 use axum::Router;
 use axum::extract::State;
 use axum::routing::get;
-use pacod_bench_engine::gw::GwAdmin;
-use serde_json::json;
 use tokio::sync::watch;
 
+pub mod agents;
 pub mod api;
 pub mod cli;
 pub mod config;
+pub mod gateways;
 pub mod identity;
 pub mod reports;
 pub mod runs;
+pub mod schedules;
+pub mod secrets;
+pub mod settings;
 pub mod store;
 
+use agents::Agents;
 use api::{AppState, AuthMode};
 use config::{Auth, Config};
+use gateways::Gateways;
 use runs::Runs;
+use settings::Settings;
 use store::Store;
 
 /// The database, with a few tries: it may start at the same time.
@@ -52,21 +57,25 @@ pub struct App {
     pub runs: Arc<Runs>,
 }
 
-/// Migrates the database, writes the configured gateways as targets, starts following pacod-id
-/// and the run queue (after taking down what interrupted runs left).
+/// Migrates the database, writes the configured gateways as targets and opens the tokens of
+/// those added through the UI, starts following pacod-id and the run queue (after taking down
+/// what interrupted runs left, which needs their gateways).
 pub async fn app(config: Arc<Config>, stop: watch::Receiver<bool>) -> anyhow::Result<App> {
     let store = connect(&config.database_url).await?;
     store.migrate().await.context("migrating the database")?;
 
     let http = reqwest::Client::builder().connect_timeout(Duration::from_secs(5)).build()?;
-    let mut gateways = BTreeMap::new();
-    for g in &config.gateways {
-        let definition = json!({ "admin_url": g.admin_url, "mock_url": g.mock_url, "data_plane": g.data_plane });
-        store.upsert_config_target(&g.name, &definition, &g.declared).await?;
-        gateways.insert(format!("cfg-{}", g.name), Arc::new(GwAdmin::new(&g.admin_url, &g.token, http.clone())));
+    match &config.keys {
+        Some(keys) => tracing::info!(
+            kek_id = %keys.current().id,
+            kek_check = %keys.current().check_value(),
+            "gateways may be added through the UI; their tokens are sealed under BENCH_KEK"
+        ),
+        None => tracing::info!("BENCH_KEK is not set: no gateway is added through the UI"),
     }
-    store.forget_config_targets(&config.gateways.iter().map(|g| g.name.clone()).collect::<Vec<_>>()).await?;
-    let gateways = Arc::new(gateways);
+    let gateways = Arc::new(Gateways::load(&config, &store, &http).await?);
+    let agents = Arc::new(Agents::load(&config, &store).await?);
+    let settings = Arc::new(Settings::load(config.clone(), &store).await?);
 
     let auth = match &config.auth {
         Auth::Oidc(s) => AuthMode::Oidc(identity::Identity::start(s.clone(), stop.clone())),
@@ -75,7 +84,9 @@ pub async fn app(config: Arc<Config>, stop: watch::Receiver<bool>) -> anyhow::Re
             AuthMode::Dev { token: token.clone() }
         }
     };
-    let runs = Arc::new(Runs::new(store.clone(), config.clone(), http.clone(), gateways.clone()));
+    let (ended_tx, ended) = tokio::sync::mpsc::unbounded_channel();
+    let runs =
+        Arc::new(Runs::new(store.clone(), config.clone(), http.clone(), gateways.clone(), agents.clone(), ended_tx));
     let interrupted = store.recover().await?;
     if !interrupted.is_empty() {
         tracing::warn!(
@@ -83,9 +94,10 @@ pub async fn app(config: Arc<Config>, stop: watch::Receiver<bool>) -> anyhow::Re
             "runs were going when the benchmark stopped; their scenes are taken down"
         );
     }
-    runs.clone().spawn(interrupted, stop);
+    runs.clone().spawn(interrupted, stop.clone());
 
-    let state = AppState { config, store, runs: runs.clone(), auth: Arc::new(auth), http, gateways };
+    let state = AppState { config, store, runs: runs.clone(), auth: Arc::new(auth), http, gateways, agents, settings };
+    schedules::spawn(state.clone(), ended, stop);
     let metrics = Router::new().route("/metrics", get(metrics)).with_state(runs.clone());
     Ok(App { api: api::router(state), metrics, runs })
 }
@@ -104,7 +116,7 @@ pub async fn serve(config: Config, shutdown: impl Future<Output = ()> + Send + '
     let listener = tokio::net::TcpListener::bind(config.listen.as_str())
         .await
         .with_context(|| format!("binding {}", config.listen))?;
-    tracing::info!(listen = %config.listen, gateways = config.gateways.len(), agents = config.agents.len(), "pacod-bench serving");
+    tracing::info!(listen = %config.listen, "pacod-bench serving");
     axum::serve(listener, app.api).with_graceful_shutdown(shutdown).await?;
 
     let runs = app.runs;
@@ -119,6 +131,39 @@ pub async fn serve(config: Config, shutdown: impl Future<Output = ()> + Send + '
     let _ = stop_tx.send(true);
     tracing::info!("pacod-bench stopped");
     Ok(())
+}
+
+/// `pacod-bench rewrap-secrets`: wraps the data key of every sealed gateway token again under the
+/// current key-encryption key, after a rotation (the old key in `BENCH_KEK_OLD`). The tokens
+/// themselves are not encrypted again, and a running service goes on with the ones it opened.
+/// What it did: tokens moved, tokens already under the current key.
+pub async fn rewrap_secrets(env: config::Env<'_>) -> anyhow::Result<(usize, usize)> {
+    let database_url = config::secret(env, "DATABASE_URL")?.context("DATABASE_URL is not set")?;
+    let keys =
+        secrets::Keys::from_env(env)?.context("BENCH_KEK is not set: there is no key to wrap the tokens under")?;
+    let store = connect(&database_url).await?;
+    store.migrate().await.context("migrating the database")?;
+    let (mut moved, mut current, mut failed) = (0, 0, Vec::new());
+    for (id, admin_url, sealed) in store.sealed_tokens().await? {
+        let context = secrets::token_context(&id, &admin_url);
+        let result = serde_json::from_value::<secrets::Sealed>(sealed)
+            .map_err(|e| e.to_string())
+            .and_then(|s| secrets::rewrap(keys.all(), keys.current(), &context, &s).map_err(|e| e.to_string()));
+        match result {
+            Ok(Some(new)) => {
+                store.set_sealed(&id, &serde_json::to_value(&new)?).await?;
+                moved += 1;
+            }
+            Ok(None) => current += 1,
+            Err(e) => {
+                tracing::error!(target_id = %id, error = %e, "a gateway's token cannot be wrapped again");
+                failed.push(id);
+            }
+        }
+    }
+    tracing::info!(moved, current, failed = failed.len(), kek_id = %keys.current().id, "tokens wrapped again");
+    anyhow::ensure!(failed.is_empty(), "the tokens of {} cannot be opened with the configured keys", failed.join(", "));
+    Ok((moved, current))
 }
 
 /// Prometheus' text format: the job `pacod-bench` (platform/prometheus/bench.yml).

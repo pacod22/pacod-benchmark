@@ -432,7 +432,7 @@ impl Runner {
         let Target::Managed { gw, mock_url, .. } = &self.input.target else { return Ok(()) };
         let gw = gw.clone();
         let status = gw.status().await.map_err(|e| match e.status() {
-            Some(401 | 403) => RunError::Failed("the gateway refuses BENCH_GW_ADMIN_TOKEN".into()),
+            Some(401 | 403) => RunError::Failed("the gateway refuses the benchmark's admin token".into()),
             _ => RunError::Failed(e.to_string()),
         })?;
         let cache = gw.cache_view().await.unwrap_or(Value::Null);

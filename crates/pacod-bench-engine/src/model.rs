@@ -494,6 +494,15 @@ pub enum Placement {
 }
 
 impl Placement {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Placement::InStack => "in_stack",
+            Placement::SameHost => "same_host",
+            Placement::Remote => "remote",
+            Placement::Unknown => "unknown",
+        }
+    }
+
     pub fn parse(text: &str) -> Option<Placement> {
         match text.trim() {
             "in_stack" => Some(Placement::InStack),

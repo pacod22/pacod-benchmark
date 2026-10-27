@@ -1,11 +1,9 @@
-//! Health, the caller's session, the agents, comparisons, and leftovers.
+//! Health, the caller's session, comparisons, and leftovers.
 
 use axum::Json;
 use axum::Router;
 use axum::extract::{Query, State};
 use axum::routing::{get, post};
-use futures_util::future::join_all;
-use pacod_bench_engine::agents::AgentClient;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -17,7 +15,6 @@ pub fn routes() -> Router<AppState> {
         .route("/healthz", get(|| async { Json(json!({ "status": "ok" })) }))
         .route("/readyz", get(readyz))
         .route("/session", get(session))
-        .route("/agents", get(agents))
         .route("/compare", get(compare))
         .route("/leftovers/clean", post(clean_leftovers))
 }
@@ -35,44 +32,20 @@ async fn readyz(State(st): State<AppState>) -> ApiResult<Json<Value>> {
 
 async fn session(State(st): State<AppState>, p: Principal) -> Json<Value> {
     let c = &st.config;
+    let limits = st.settings.effective();
     Json(json!({
         "principal": { "id": p.id, "display": p.display, "kind": p.kind },
         "permissions": p.permissions(),
-        "gateways": c.gateways.iter().map(|g| &g.name).collect::<Vec<_>>(),
-        "agents": c.agents.len(),
-        "baseline": c.baseline_mock_url.is_some(),
-        "publish": c.publish.is_some(),
+        "gateways": st.gateways.names(),
+        "agents": st.agents.len(),
+        "agent_names": st.agents.names(),
+        "default_agents": limits.default_agents,
+        "baseline": limits.baseline_mock_url.is_some(),
+        "publish": super::runs::destination(&st).is_some(),
         "console_url": c.console_url,
-        "limits": { "max_cells": c.max_cells, "max_duration_s": c.max_duration_s, "agent_wait_s": c.agent_wait_s },
+        "limits": { "max_cells": limits.max_cells, "max_duration_s": limits.max_duration_s, "agent_wait_s": limits.agent_wait_s },
         "active_run": st.runs.active_id(),
     }))
-}
-
-/// Every configured agent, asked whether it is there.
-async fn agents(State(st): State<AppState>, _p: Principal) -> Json<Value> {
-    let token = st.config.agent_token.clone().unwrap_or_default();
-    let asks = st.config.agents.iter().map(|a| {
-        let client = AgentClient::new(a.clone(), &token, st.http.clone());
-        async move {
-            let base = json!({ "name": a.name, "url": a.url, "placement": a.placement });
-            match client.info().await {
-                Ok(info) => {
-                    let mut v = json!(info);
-                    v["reachable"] = json!(true);
-                    v["url"] = json!(a.url);
-                    v["placement"] = json!(a.placement);
-                    v
-                }
-                Err(e) => {
-                    let mut v = base;
-                    v["reachable"] = json!(false);
-                    v["error"] = json!(e.to_string());
-                    v
-                }
-            }
-        }
-    });
-    Json(json!({ "items": join_all(asks).await }))
 }
 
 #[derive(Deserialize)]

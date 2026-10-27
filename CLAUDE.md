@@ -32,9 +32,11 @@ make plan SUITE=examples/suites/modes.yaml
   carries `required: false`.
 - **Logging** through `pacod_gw_logging` (`init_log` in `main.rs`); `SERVICE_NAME`,
   `BENCH_LOG_FORMAT`, `RUST_LOG`.
-- **Secrets** come from a variable or its `_FILE`, never from a command line, the database, a log
-  or a report. The management API is called only through the allow-list in
-  `crates/pacod-bench-engine/src/gw.rs`; no generic pass-through.
+- **Secrets** come from a variable or its `_FILE`, never from a command line, a log or a report,
+  and never from the database, with one exception: the admin tokens of gateways added through
+  the UI, sealed under `BENCH_KEK` and bound to their target and address (`src/secrets.rs`),
+  read on their own (`Store::sealed_token`) and never answered. The management API is called
+  only through the allow-list in `crates/pacod-bench-engine/src/gw.rs`; no generic pass-through.
 - **Nothing is written to a gateway while a cell's load runs**; the key goes first in every
   teardown. `tests/run.rs` checks both.
 - **Contracts.** The load agent's (`pacod_gw_load::contract`) and the report's

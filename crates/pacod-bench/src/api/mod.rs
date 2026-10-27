@@ -2,23 +2,28 @@
 //! health checks needs a caller with a benchmark role; docs/architecture.md lists the routes and
 //! the permission each needs.
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use axum::Json;
 use axum::Router;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use pacod_bench_engine::gw::{GwAdmin, GwError};
+use pacod_bench_engine::gw::GwError;
 use serde_json::json;
 
+use crate::agents::Agents;
 use crate::config::Config;
+use crate::gateways::Gateways;
 use crate::runs::Runs;
+use crate::settings::Settings;
 use crate::store::Store;
 
+mod agents;
 pub mod auth;
 mod misc;
-mod runs;
+pub(crate) mod runs;
+mod schedules;
+mod settings;
 mod suites;
 mod targets;
 
@@ -31,8 +36,11 @@ pub struct AppState {
     pub runs: Arc<Runs>,
     pub auth: Arc<AuthMode>,
     pub http: reqwest::Client,
-    /// The gateways the benchmark manages, by target id (`cfg-<name>`).
-    pub gateways: Arc<BTreeMap<String, Arc<GwAdmin>>>,
+    /// The gateways the benchmark manages, by target id, shared with the run queue.
+    pub gateways: Arc<Gateways>,
+    /// The load agents, shared with the run queue.
+    pub agents: Arc<Agents>,
+    pub settings: Arc<Settings>,
 }
 
 /// An answer that is not a success: `{"error": {"type", "message"}}`, as pacod-gw answers.
@@ -91,7 +99,13 @@ impl From<GwError> for ApiError {
 }
 
 pub fn router(state: AppState) -> Router {
-    let api =
-        Router::new().merge(misc::routes()).merge(targets::routes()).merge(suites::routes()).merge(runs::routes());
+    let api = Router::new()
+        .merge(misc::routes())
+        .merge(agents::routes())
+        .merge(settings::routes())
+        .merge(targets::routes())
+        .merge(suites::routes())
+        .merge(runs::routes())
+        .merge(schedules::routes());
     Router::new().nest("/api/v1", api).with_state(state)
 }

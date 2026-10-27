@@ -6,8 +6,8 @@
 # The defaults aim at a pacod-gw development stack on this machine (pacod-gw's `make dev-up`):
 # its management API at host.docker.internal:18081, its load agent at :18096, its data plane at
 # :18080, and its load mock as its gateway reaches it (gw-load-mock:9000). BENCH_GW_ADMIN_TOKEN
-# is that gateway's platform-admin token (docs/runbook.md, section 3); without it the benchmark
-# manages no gateway and runs external targets only.
+# is that gateway's platform-admin token (docs/runbook.md, section 3); without it, add that
+# gateway in the UI (Targets → The gateway of this stack) with a token minted there.
 #
 # The UI: http://localhost:18380, signed in as admin@pacod-bench.test / pacod-bench-dev.
 
@@ -29,6 +29,10 @@ services:
       BENCH_LOAD_MOCK_URL: http://gw-load-mock:9000
       BENCH_GW_DECLARED: '{"layout": "single", "notes": "pacod-gw development stack on this machine"}'
       BENCH_GW_CONSOLE_URL: http://127.0.0.1:13000
+      # A public development key: gateways added in the UI of a development stack only.
+      BENCH_KEK: ZGV2LW9ubHktYmVuY2gta2VrLW5vdC1hLXNlY3JldCE=
+      BENCH_GW_INTERNAL_ADMIN_URL: http://host.docker.internal:18081
+      BENCH_GW_INTERNAL_DATA_PLANE: http://host.docker.internal:18080
       # The benchmark's own agent and pacod-gw's development agent; both take the same token.
       BENCH_AGENTS: local=http://bench-load-agent:8096
       BENCH_AGENT_PLACEMENT: local=same_host

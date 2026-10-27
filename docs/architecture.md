@@ -38,7 +38,11 @@ pacod-bench run (command line): the same controller, no database, no UI, a repor
 | `testing` (feature) | A fake of the management API and an agent in process, for tests |
 
 `pacod-bench` holds the API (`api/`), the run queue (`runs.rs`), the database (`store.rs`,
-`migrations/`), pacod-id (`identity.rs`), the reports (`reports.rs`) and the command line
+`migrations/`), the gateways it manages (`gateways.rs`: those of the configuration and those
+added through the UI, one registry the API and the run queue share), the sealed tokens of the
+latter (`secrets.rs`), the agents (`agents.rs`, likewise), the run settings (`settings.rs`), the
+scheduler (`schedules.rs`: due fires every 30 seconds, and the reports of scheduled runs as they
+end), pacod-id (`identity.rs`), the reports (`reports.rs`) and the command line
 (`cli.rs`).
 
 ## 3. A run
@@ -76,11 +80,11 @@ benchmark role.
 
 | Route | Permission |
 |---|---|
-| `GET /session`, `/agents`, `/targets`, `/targets/{id}`, `/suites`, `/suites/{id}`, `/runs`, `/runs/{id}`, `/runs/{id}/cells/{idx}`, `/runs/{id}/events`, `/runs/{id}/report`, `/compare?runs=` ; `POST /plan` | `bench.results.read` |
-| `POST /suites`, `PUT/DELETE /suites/{id}` | `bench.suites.manage` |
-| `POST /runs`, `POST /runs/{id}/cancel`, `POST /targets/{id}/check` | `bench.runs.start` |
+| `GET /session`, `/agents`, `/settings`, `/queue`, `/schedules`, `/schedules/{id}`, `/targets`, `/targets/presets`, `/targets/{id}`, `/suites`, `/suites/{id}`, `/runs`, `/runs/{id}`, `/runs/{id}/cells/{idx}`, `/runs/{id}/events`, `/runs/{id}/report`, `/compare?runs=` ; `POST /plan` | `bench.results.read` |
+| `POST /suites`, `PUT/DELETE /suites/{id}`, `POST /suites/{id}/copy` | `bench.suites.manage` |
+| `POST /runs`, `POST /runs/{id}/cancel`, `POST /runs/{id}/move`, `POST /runs/{id}/rerun`, `POST /targets/{id}/check`, `POST /schedules`, `POST /schedules/{id}/fire`; `PUT/DELETE /schedules/{id}` (its creator, or `bench.targets.manage`) | `bench.runs.start` |
 | `POST /runs/{id}/publish` | `bench.reports.publish` |
-| `POST /targets`, `PUT/DELETE /targets/{id}`, `DELETE /runs/{id}`, `POST /leftovers/clean` | `bench.targets.manage` |
+| `POST /targets`, `PUT/DELETE /targets/{id}`, `POST /agents`, `PUT/DELETE /agents/{name}`, `PUT /settings`, `DELETE /runs/{id}`, `POST /leftovers/clean` | `bench.targets.manage` |
 
 `GET /runs/{id}/events` is a stream of server-sent events: `snapshot` (the run and its cells),
 then `status`, `observed`, `cell`, `point`, `cell_done`, `warning`, `done`. The UI's server passes
@@ -93,14 +97,19 @@ the Rust types; a change to those changes them.
 
 | Table | What |
 |---|---|
-| `targets` | Managed gateways (from the configuration, `cfg-<name>`) and external targets; never a secret |
+| `targets` | Managed gateways (from the configuration, `cfg-<name>`, or added through the UI) and external targets. A gateway added through the UI keeps its admin token, sealed under `BENCH_KEK` and bound to the target's id and management API (`sealed_token`, read on its own), its label and its last check |
+| `agents` | Load agents added through the UI: name, URL, where they stand. Those of `BENCH_AGENTS` are not written here; the token is in neither |
+| `settings` | One row: the run settings an admin set, each limit at most the environment's |
+| `schedules` | Runs on a timetable: a suite, a managed gateway, agents, the cadence, its creator, the next and the last fire and what it did |
 | `suites` | Suites, versioned |
-| `runs` | A run: copies of its suite, target and agents, its plan, the gateway's fingerprint, its scene (for a teardown after an interruption), leftovers, warnings |
+| `runs` | A run: copies of its suite, target, agents and settings, the schedule that started it, its plan, the gateway's fingerprint, its scene (for a teardown after an interruption), leftovers, warnings |
 | `cells` | A run's cells: configuration, comparison key, the result, the seconds |
 | `publications` | Where a run's report went, or why not |
 
-One run is active at a time, which a partial unique index holds. A pasted key of an external
-target is held in memory until its run starts and never written.
+One run is active at a time, which a partial unique index holds; queued runs start in the order
+of their `position` (a new run goes to the end, `POST /runs/{id}/move` changes it). A pasted key of an external
+target is held in memory until its run starts and never written. A gateway is not removed or
+pointed elsewhere while a run on it waits or goes, or left objects on it.
 
 ## 6. Comparison keys
 

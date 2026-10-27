@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import Badge from '#lib/components/Badge.svelte';
+	import ExternalFields from '#lib/components/ExternalFields.svelte';
+	import GatewayFields from '#lib/components/GatewayFields.svelte';
 	import Notice from '#lib/components/Notice.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import { dateTime, ms } from '#lib/format.ts';
+	import type { TokenCheck } from '#lib/types.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -11,6 +14,7 @@
 	const can = (p: string) => data.me.permissions.includes(p as never);
 	const check = $derived(
 		(form && 'check' in form ? form.check : null) as {
+			token: TokenCheck | null;
 			observed: typeof t.observed;
 			probe: {
 				ok: boolean;
@@ -26,17 +30,50 @@
 	);
 	const observed = $derived(check?.observed ?? t.observed);
 	const components = $derived(observed?.status?.components ?? []);
+	const tokenCheck = $derived(check?.token ?? t.token_checked);
+	const editable = $derived(t.source === 'api' && can('bench.targets.manage'));
+	// A refused change is filled in again from what it sent (never the token), else from the target.
+	const sent = $derived(
+		form && 'values' in form ? ((form.values ?? {}) as Record<string, string>) : null
+	);
+	const gatewayValues: Record<string, string> = $derived(
+		sent ?? {
+			name: t.name,
+			admin_url: t.definition.admin_url ?? '',
+			mock_url: t.definition.mock_url ?? '',
+			data_plane: t.definition.data_plane ?? '',
+			console_url: t.definition.console_url ?? ''
+		}
+	);
+	const externalValues: Record<string, string> = $derived(
+		sent ?? {
+			name: t.name,
+			product: t.product,
+			base_url: t.definition.base_url ?? '',
+			model: t.definition.model ?? '',
+			provider: t.definition.provider ?? '',
+			upstream: t.definition.upstream ?? '',
+			...(t.definition.paid ? { paid: 'on' } : {})
+		}
+	);
 </script>
 
 <div class="stack-lg">
 	<PageHeader
 		title={t.name}
 		description={t.kind === 'managed'
-			? 'A pacod-gw the benchmark manages: each run sets its scene up through the management API.'
+			? t.source === 'config'
+				? 'A pacod-gw the benchmark manages, from its configuration: each run sets its scene up through the management API.'
+				: 'A pacod-gw the benchmark manages, added here with its token: each run sets its scene up through the management API.'
 			: 'An external target: a URL and a model. The benchmark sets nothing up there.'}
 		crumbs={[{ label: 'Targets', href: '/targets' }]}
 	/>
 	{#if form?.message}<Notice tone="error">{form.message}</Notice>{/if}
+	{#if !t.usable}
+		<Notice tone="warning" title="This gateway takes no run now">
+			{t.unusable_reason}
+		</Notice>
+	{/if}
 
 	<div class="grid">
 		<section class="card stack">
@@ -53,6 +90,23 @@
 					<dd class="mono">{t.definition.mock_url}</dd>
 					<dt>Data plane, as the agents reach it</dt>
 					<dd class="mono">{t.definition.data_plane ?? "each agent's own target"}</dd>
+					{#if t.source === 'api'}
+						<dt>Console</dt>
+						<dd class="mono">{t.definition.console_url ?? 'BENCH_GW_CONSOLE_URL'}</dd>
+						<dt>Token</dt>
+						<dd class="mono">{t.token_hint || 'none'}</dd>
+					{:else}
+						<dt>Token</dt>
+						<dd>BENCH_GW_ADMIN_TOKEN, or the token file of BENCH_GW_TARGETS</dd>
+					{/if}
+					{#if tokenCheck}
+						<dt>The gateway takes it for</dt>
+						<dd>
+							{tokenCheck.display}
+							{tokenCheck.platform_admin ? '(platform admin)' : ''}
+							<span class="muted small">at {dateTime(tokenCheck.checked_at)}</span>
+						</dd>
+					{/if}
 				{:else}
 					<dt>Base URL</dt>
 					<dd class="mono">{t.definition.base_url}</dd>
@@ -159,7 +213,33 @@
 		{/if}
 	</section>
 
-	{#if can('bench.targets.manage') && t.source === 'api'}
+	{#if editable && t.kind === 'managed'}
+		<form class="card stack" method="POST" action="?/gateway" use:enhance>
+			<h2>Change the gateway</h2>
+			<p class="muted small">
+				Not while a run on it waits or goes, or left objects on it. A new management API needs the
+				token again.
+			</p>
+			<GatewayFields values={gatewayValues} tokenRequired={false} />
+			<input type="hidden" name="declared" value={JSON.stringify(t.declared)} />
+			<div class="row">
+				<button class="btn" type="submit">Save</button>
+				{#if form && 'saved' in form}<span class="muted small">Saved.</span>{/if}
+			</div>
+		</form>
+	{:else if editable}
+		<form class="card stack" method="POST" action="?/external" use:enhance>
+			<h2>Change the target</h2>
+			<ExternalFields values={externalValues} mock={t.definition.mock ?? null} editing />
+			<input type="hidden" name="declared" value={JSON.stringify(t.declared)} />
+			<div class="row">
+				<button class="btn" type="submit">Save</button>
+				{#if form && 'saved' in form}<span class="muted small">Saved.</span>{/if}
+			</div>
+		</form>
+	{/if}
+
+	{#if editable}
 		<form method="POST" action="?/delete" use:enhance>
 			<button class="btn btn-danger" type="submit">Delete this target</button>
 		</form>

@@ -1,8 +1,9 @@
 //! The gateway's management API (`/api/v1` on pacod-gw's admin listener), as the benchmark uses
 //! it: exactly the calls a run makes and no others.
 //!
-//! The token is a platform admin's (`BENCH_GW_ADMIN_TOKEN`): a `pidt_` service-account token
-//! when the gateway signs in through pacod-id, a `pgwa_` admin token otherwise. A platform admin
+//! The token is a platform admin's (`BENCH_GW_ADMIN_TOKEN`, or the one sealed with a gateway
+//! added through the UI): a `pidt_` service-account token when the gateway signs in through
+//! pacod-id, a `pgwa_` admin token otherwise. A platform admin
 //! may do everything, so this client is the boundary: there is no generic pass-through, and
 //! [`GwAdmin::delete`] takes only paths below the run's own scratch organisation or the
 //! benchmark's own mock objects.
@@ -43,7 +44,7 @@ fn refused(status: u16, what: String, body: &Value) -> GwError {
     let error = &body["error"];
     let mut message = error["message"].as_str().unwrap_or("").to_owned();
     if message.is_empty() && matches!(status, 401 | 403) {
-        message = "BENCH_GW_ADMIN_TOKEN is refused".into();
+        message = "the benchmark's admin token is refused".into();
     }
     GwError::Refused { status, what, message, code: error["type"].as_str().unwrap_or("").to_owned() }
 }
@@ -152,6 +153,13 @@ impl GwAdmin {
     }
 
     // --- what the run records about the gateway ----------------------------------------------
+
+    /// `GET /session`: who the gateway takes the token for (`display`, `kind`), and whether it is
+    /// a platform admin. Any valid token may ask; a token that is no platform admin's shows here,
+    /// not as a bare 403 of the first call a run makes.
+    pub async fn session(&self) -> Result<Value, GwError> {
+        self.get("/session").await
+    }
 
     /// `GET /system/status`: software version, instances, configuration head, components. A
     /// refusal here stops a run before it sets anything up.

@@ -53,6 +53,14 @@ services:
       BENCH_GW_DATA_PLANE: ${BENCH_GW_DATA_PLANE:-}
       BENCH_GW_DECLARED: ${BENCH_GW_DECLARED:-}
       BENCH_GW_CONSOLE_URL: ${BENCH_GW_CONSOLE_URL:-}
+      # Gateways added through the UI: the key their tokens are sealed under (none: no gateway is
+      # added there), and the gateway of this stack as the UI offers it.
+      BENCH_KEK: ${BENCH_KEK:-}
+      BENCH_KEK_ID: ${BENCH_KEK_ID:-}
+      BENCH_KEK_OLD: ${BENCH_KEK_OLD:-}
+      BENCH_GW_INTERNAL_ADMIN_URL: ${BENCH_GW_INTERNAL_ADMIN_URL:-http://pacod-gw-admin:8081}
+      BENCH_GW_INTERNAL_MOCK_URL: ${BENCH_GW_INTERNAL_MOCK_URL:-http://gw-load-mock:9000}
+      BENCH_GW_INTERNAL_DATA_PLANE: ${BENCH_GW_INTERNAL_DATA_PLANE:-}
       # The load agents (name=URL,…), the token they share with the tester, where they stand,
       # and the mock as they reach it (for the baseline cells).
       BENCH_AGENTS: ${BENCH_AGENTS:-}

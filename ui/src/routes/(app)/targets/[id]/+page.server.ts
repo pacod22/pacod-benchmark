@@ -1,5 +1,6 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import type { Target } from '#lib/types.ts';
+import * as forms from '#lib/server/targets.ts';
+import type { Target, TokenCheck } from '#lib/types.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
@@ -12,10 +13,11 @@ export const actions: Actions = {
 	check: async ({ locals, params, request }) => {
 		const form = await request.formData();
 		const key = String(form.get('key') ?? '').trim();
-		const r = await locals.api.post<{ observed: unknown; probe: unknown }>(
-			`/targets/${encodeURIComponent(params.id)}/check`,
-			key ? { key } : {}
-		);
+		const r = await locals.api.post<{
+			token: TokenCheck | null;
+			observed: unknown;
+			probe: unknown;
+		}>(`/targets/${encodeURIComponent(params.id)}/check`, key ? { key } : {});
 		if (!r.ok) return fail(r.status, { check: null, message: r.problem.message });
 		return { check: r.data, message: null };
 	},
@@ -36,6 +38,42 @@ export const actions: Actions = {
 				: { name: t.name, product: t.product, definition: t.definition, declared };
 		const r = await locals.api.put(`/targets/${encodeURIComponent(params.id)}`, body);
 		if (!r.ok) return fail(r.status, { message: r.problem.message });
+		return { saved: true };
+	},
+	/** A gateway added here: its name, addresses and declared fingerprint; a new token when one is typed. */
+	gateway: async ({ locals, params, request }) => {
+		const form = await request.formData();
+		const declared = forms.declared(form);
+		if (!declared)
+			return fail(422, {
+				message: 'The declared fingerprint is not a JSON object.',
+				values: forms.values(form)
+			});
+		const r = await locals.api.put(`/targets/${encodeURIComponent(params.id)}`, {
+			name: forms.name(form),
+			kind: 'managed',
+			definition: forms.gatewayDefinition(form),
+			declared,
+			token: forms.token(form)
+		});
+		if (!r.ok) return fail(r.status, { message: r.problem.message, values: forms.values(form) });
+		return { saved: true };
+	},
+	external: async ({ locals, params, request }) => {
+		const form = await request.formData();
+		const declared = forms.declared(form);
+		if (!declared)
+			return fail(422, {
+				message: 'The declared fingerprint is not a JSON object.',
+				values: forms.values(form)
+			});
+		const r = await locals.api.put(`/targets/${encodeURIComponent(params.id)}`, {
+			name: forms.name(form),
+			product: forms.product(form),
+			definition: forms.externalDefinition(form),
+			declared
+		});
+		if (!r.ok) return fail(r.status, { message: r.problem.message, values: forms.values(form) });
 		return { saved: true };
 	},
 	delete: async ({ locals, params }) => {

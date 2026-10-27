@@ -27,6 +27,9 @@ enum Command {
     Plan(cli::PlanArgs),
     /// Reads a report file and checks it as pacod-gw does.
     Validate(cli::ValidateArgs),
+    /// Wraps the sealed tokens of gateways added through the UI under the current BENCH_KEK,
+    /// after a rotation (the old key in BENCH_KEK_OLD).
+    RewrapSecrets,
     /// Asks a running service whether it is healthy (the image's healthcheck).
     Healthcheck {
         #[arg(default_value = "http://127.0.0.1:8190/api/v1/healthz")]
@@ -58,6 +61,15 @@ fn main() -> std::process::ExitCode {
         }
         Command::Plan(a) => cli::plan(a),
         Command::Validate(a) => cli::validate(a),
+        Command::RewrapSecrets => {
+            init_log("pacod-bench", true);
+            runtime.block_on(async {
+                let env = |name: &str| std::env::var(name).ok();
+                let (moved, current) = pacod_bench::rewrap_secrets(&env).await?;
+                eprintln!("pacod-bench: {moved} tokens wrapped again, {current} already under the current key");
+                Ok(())
+            })
+        }
         Command::Healthcheck { url } => runtime.block_on(healthcheck(&url)),
     };
     match result {

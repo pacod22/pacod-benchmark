@@ -12,6 +12,8 @@ use pacod_bench_engine::agents::{AgentRef, MIN_TOKEN_LEN, apply_placement, parse
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::secrets::Keys;
+
 /// A shorter development token is refused.
 const MIN_DEV_TOKEN: usize = 32;
 
@@ -117,6 +119,15 @@ pub struct Publish {
     pub token: String,
 }
 
+/// The gateway of this stack, as the UI offers it when a gateway is added: its management API,
+/// the mock as it reaches it, and its data plane as the agents reach it.
+#[derive(Clone)]
+pub struct InternalGw {
+    pub admin_url: String,
+    pub mock_url: String,
+    pub data_plane: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct Config {
     /// `host:port`: a host name binds to its address, so that the API listens on an alias that
@@ -136,6 +147,10 @@ pub struct Config {
     pub publish: Option<Publish>,
     /// The gateway console's origin, for links to a published report.
     pub console_url: Option<String>,
+    /// The keys that seal the admin tokens of gateways added through the UI; none: no gateway
+    /// is added there.
+    pub keys: Option<Keys>,
+    pub internal: InternalGw,
 }
 
 #[derive(Deserialize)]
@@ -299,6 +314,13 @@ impl Config {
             agent_wait_s: number(env, "BENCH_AGENT_WAIT_S", 300)?,
             publish,
             console_url: url(env, "BENCH_GW_CONSOLE_URL")?,
+            keys: Keys::from_env(env)?,
+            internal: InternalGw {
+                admin_url: url(env, "BENCH_GW_INTERNAL_ADMIN_URL")?
+                    .unwrap_or_else(|| "http://pacod-gw-admin:8081".into()),
+                mock_url: url(env, "BENCH_GW_INTERNAL_MOCK_URL")?.unwrap_or_else(|| "http://gw-load-mock:9000".into()),
+                data_plane: url(env, "BENCH_GW_INTERNAL_DATA_PLANE")?,
+            },
         })
     }
 }
@@ -324,8 +346,9 @@ mod tests {
     fn a_development_setting_needs_nothing_but_a_database_and_a_token() {
         let c = Config::from_env(&env(&DEV)).unwrap();
         assert!(matches!(c.auth, Auth::Dev { .. }));
-        assert!(c.gateways.is_empty() && c.agents.is_empty() && c.publish.is_none());
+        assert!(c.gateways.is_empty() && c.agents.is_empty() && c.publish.is_none() && c.keys.is_none());
         assert_eq!(c.listen, "0.0.0.0:8190");
+        assert_eq!(c.internal.admin_url, "http://pacod-gw-admin:8081");
         assert!(check_listen("bench-api-internal:8190").is_ok() && check_listen("nope").is_err());
     }
 

@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
+	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
 	import Crosshair from '@lucide/svelte/icons/crosshair';
 	import GitCompare from '@lucide/svelte/icons/git-compare';
 	import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
@@ -11,6 +12,7 @@
 	import Moon from '@lucide/svelte/icons/moon';
 	import Play from '@lucide/svelte/icons/play';
 	import Server from '@lucide/svelte/icons/server';
+	import Settings from '@lucide/svelte/icons/settings';
 	import Sun from '@lucide/svelte/icons/sun';
 	import type { LayoutProps } from './$types';
 
@@ -20,9 +22,11 @@
 		{ href: '/', label: 'Dashboard', icon: LayoutDashboard },
 		{ href: '/runs', label: 'Runs', icon: Play },
 		{ href: '/suites', label: 'Suites', icon: ListChecks },
+		{ href: '/schedules', label: 'Schedules', icon: CalendarClock },
 		{ href: '/compare', label: 'Compare', icon: GitCompare },
 		{ href: '/targets', label: 'Targets', icon: Crosshair },
-		{ href: '/agents', label: 'Agents', icon: Server }
+		{ href: '/agents', label: 'Agents', icon: Server },
+		{ href: '/settings', label: 'Settings', icon: Settings }
 	];
 
 	const current = (href: string) =>

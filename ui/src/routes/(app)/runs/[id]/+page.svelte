@@ -153,7 +153,18 @@
 	{#if run.leftovers.length}
 		<Notice tone="warning" title="Left over on the gateway">
 			{run.leftovers.length} objects the run made could not be deleted: {run.leftovers.join(', ')}.
-			An admin cleans them up from the runs list (POST /leftovers/clean).
+			{#if can('bench.targets.manage')}
+				<form method="POST" action="?/clean" use:enhance>
+					<button class="btn" type="submit">Clean up again</button>
+				</form>
+			{:else}
+				An admin cleans them up.
+			{/if}
+		</Notice>
+	{/if}
+	{#if form && 'cleaned' in form && form.cleaned}
+		<Notice tone={form.cleaned.left ? 'warning' : 'success'}>
+			{form.cleaned.left ? `${form.cleaned.left} objects are still left.` : 'Cleaned up.'}
 		</Notice>
 	{/if}
 	{#if m && done.length}
@@ -320,6 +331,44 @@
 			</dd>
 		</dl>
 	</section>
+
+	{#if finished && (can('bench.runs.start') || can('bench.targets.manage'))}
+		<section class="card stack">
+			<h2>Again, or away</h2>
+			<p class="muted small">
+				Again: the same suite as this run had it, on the same target, with the same agents, under
+				today's settings. Its cells have the same comparison keys, so the two line up in a
+				comparison.
+			</p>
+			<div class="row">
+				{#if can('bench.runs.start')}
+					<form method="POST" action="?/rerun" use:enhance class="row">
+						{#if run.target.kind === 'external'}
+							<label
+								>Key of the target, for this run only<input
+									name="key"
+									type="password"
+									autocomplete="off"
+									required
+								/></label
+							>
+							{#if run.target.definition.paid}
+								<label class="check"
+									><input type="checkbox" name="acknowledge_cost" /> The calls may cost money</label
+								>
+							{/if}
+						{/if}
+						<button class="btn btn-primary" type="submit">Run again</button>
+					</form>
+				{/if}
+				{#if can('bench.targets.manage') && !run.leftovers.length}
+					<form method="POST" action="?/delete" use:enhance>
+						<button class="btn btn-danger" type="submit">Delete this run</button>
+					</form>
+				{/if}
+			</div>
+		</section>
+	{/if}
 
 	{#if finished}
 		<section class="card stack">
